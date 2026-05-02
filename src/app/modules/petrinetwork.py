@@ -5,14 +5,14 @@ from typing import TYPE_CHECKING, List
 import tkinter as tk
 
 
-from src.app.modules.elements import Arc, PetriNetElement
-from src.app.modules.petri import ModelArc, PetriNetModel
+from app.modules.elements import Arc, PetriNetElement
+from app.modules.petri import ModelArc, PetriNetModel
 
 class PetriNetwork:
-    def __init__(self, canvas_manager):
+    def __init__(self, editor):
         # Модель данных
-        self.canvas_manager = canvas_manager
-        self.canvas = canvas_manager.canvas
+        self.editor = editor
+        self.canvas = editor.canvas
         self.places = {}  # name -> {'element': PetriNetElement, 'tokens': int}
         self.transitions = {}  # name -> {'element': PetriNetElement}
         self.arcs = []  # список всех дуг
@@ -35,9 +35,9 @@ class PetriNetwork:
             data['element'].clear_highlight()
         for data in self.transitions.values():
             data['element'].clear_highlight()
-        if self.canvas_manager.arc_source:
-            self.canvas_manager.arc_source.clear_highlight()
-            self.canvas_manager.arc_source = None
+        if self.editor.handlers.arc_source:
+            self.editor.handlers.arc_source.clear_highlight()
+            self.editor.handlers.arc_source = None
     
     def highlight_element(self, elem, color='red'):
         self.clear_highlight()
@@ -53,9 +53,9 @@ class PetriNetwork:
         self.places[name] = {'element': element, 'tokens': tokens}
         for cid in element.canvas_ids + [element.text_id]:
             self.canvas.tag_bind(cid, '<Button-1>',
-                                lambda e, n=name: self.canvas_manager.on_element_button1('place', n, e))
+                                lambda e, n=name: self.editor.handlers.on_element_button1('place', n, e))
             self.canvas.tag_bind(cid, '<Button-3>',
-                                lambda e, n=name: self.canvas_manager.on_right_click(e, 'place', n))
+                                lambda e, n=name: self.editor.handlers.on_right_click(e, 'place', n))
         return name
     
     def create_transition(self, x, y, name=None):
@@ -68,9 +68,9 @@ class PetriNetwork:
         self.transitions[name] = {'element': element}
         for cid in element.canvas_ids + [element.text_id]:
             self.canvas.tag_bind(cid, '<Button-1>',
-                                lambda e, n=name: self.canvas_manager.on_element_button1('transition', n, e))
+                                lambda e, n=name: self.editor.handlers.on_element_button1('transition', n, e))
             self.canvas.tag_bind(cid, '<Button-3>',
-                                lambda e, n=name: self.canvas_manager.on_right_click(e, 'transition', n))
+                                lambda e, n=name: self.editor.handlers.on_right_click(e, 'transition', n))
         return name
     
     def create_arc(self, source_elem: PetriNetElement, target_elem: PetriNetElement, weight=1, arc_type='normal'):
@@ -225,7 +225,7 @@ class PetriNetwork:
         current_marking = self.get_current_marking_tuple()
         visited, edges, enabled_cache = model.reachability_graph(current_marking, max_states=5000)
 
-        win = tk.Toplevel(self.root)
+        win = tk.Toplevel(self.editorroot)
         win.title("Граф достижимости")
         win.geometry("900x600")
 
@@ -360,6 +360,6 @@ class PetriNetwork:
         if old_name in self.initial_marking:
             self.initial_marking[new_name] = self.initial_marking.pop(old_name)
 
-        self.canvas_manager.select_element(elem_type, new_name)
+        self.editor.select_element(elem_type, new_name)
         
     

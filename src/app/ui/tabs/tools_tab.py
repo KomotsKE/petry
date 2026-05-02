@@ -14,13 +14,13 @@ class ToolsTab:
 
         self.tool_var = tk.StringVar(value="select")
         ttk.Radiobutton(palette, text="Курсор", variable=self.tool_var, value="select",
-                        command=lambda: editor.set_mode("select")).pack(fill="x", pady=2)
+                        command=lambda: editor.handlers.set_mode("select")).pack(fill="x", pady=2)
         ttk.Radiobutton(palette, text="● Позиция", variable=self.tool_var, value="add_place",
-                        command=lambda: editor.set_mode("add_place")).pack(fill="x", pady=2)
+                        command=lambda: editor.handlers.set_mode("add_place")).pack(fill="x", pady=2)
         ttk.Radiobutton(palette, text="▮ Переход", variable=self.tool_var, value="add_transition",
-                        command=lambda: editor.set_mode("add_transition")).pack(fill="x", pady=2)
+                        command=lambda: editor.handlers.set_mode("add_transition")).pack(fill="x", pady=2)
         ttk.Radiobutton(palette, text="→ Дуга", variable=self.tool_var, value="add_arc",
-                        command=lambda: editor.set_mode("add_arc")).pack(fill="x", pady=2)
+                        command=lambda: editor.handlers.set_mode("add_arc")).pack(fill="x", pady=2)
 
         ttk.Separator(self.frame, orient='horizontal').pack(fill='x', pady=10)
 
@@ -47,12 +47,6 @@ class ToolsTab:
                                           state='readonly', command=editor.update_tokens)
         self.tokens_spinbox.grid(row=2, column=1, sticky='ew', padx=(6, 0), pady=1)
 
-        ttk.Label(prop_frame, text="Объект:").grid(row=3, column=0, sticky='w')
-        self.real_object_var = tk.StringVar()
-        self.real_object_var.trace_add("write", editor.on_real_object_changed)
-        ttk.Entry(prop_frame, textvariable=self.real_object_var, width=22).grid(
-            row=3, column=1, sticky='ew', padx=(6, 0), pady=1)
-
     # Аксессоры для доступа к переменным из редактора
     def get_element_name_var(self):
         return self.element_name_var
@@ -66,5 +60,3 @@ class ToolsTab:
     def get_tokens_spinbox(self):
         return self.tokens_spinbox
 
-    def get_real_object_var(self):
-        return self.real_object_var

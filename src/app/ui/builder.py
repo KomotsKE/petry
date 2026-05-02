@@ -1,9 +1,9 @@
 import tkinter as tk
 from tkinter import ttk
-from src.app.ui.tabs.tools_tab import ToolsTab
-from src.app.ui.tabs.simulation_tab import SimulationTab
-from src.app.ui.tabs.marking_tab import MarkingTab
-from src.app.ui.tabs.analysis_tab import AnalysisTab
+from app.ui.tabs.tools_tab import ToolsTab
+from app.ui.tabs.simulation_tab import SimulationTab
+from app.ui.tabs.marking_tab import MarkingTab
+from app.ui.tabs.analysis_tab import AnalysisTab
 
 class UIBuilder:
     def __init__(self, editor):
@@ -64,5 +64,4 @@ class UIBuilder:
         self.editor.element_type_var = self.editor.tools_tab.get_element_type_var()
         self.editor.tokens_var = self.editor.tools_tab.get_tokens_var()
         self.editor.tokens_spinbox = self.editor.tools_tab.get_tokens_spinbox()
-        self.editor.real_object_var = self.editor.tools_tab.get_real_object_var()
         self.editor.speed_var = self.editor.simulation_tab.get_speed_var()

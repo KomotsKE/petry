@@ -1,7 +1,7 @@
 from tkinter import messagebox, simpledialog
 from typing import TYPE_CHECKING
 
-from src.app.modules.elements import PetriNetElement
+from app.modules.elements import PetriNetElement
 
 
 class PetriSimulation:
