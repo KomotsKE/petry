@@ -34,8 +34,6 @@ class PetriNetwork:
     # ============ Подсветка ============
 
     def clear_highlight(self):
-        """Снимает подсветку со всех элементов сети.
-        Примечание: очистка arc_source — ответственность EditorEventHandlers."""
         for data in self.places.values():
             data['element'].clear_highlight()
         for data in self.transitions.values():
@@ -107,20 +105,36 @@ class PetriNetwork:
             return
         arc.set_properties(weight=weight, arc_type=arc_type.strip())
 
-    # ============ Разметка ============
+    # ============ Доменная модель ============
+
+    def build_model(self) -> PetriNetModel:
+        """Строит чистую доменную модель из текущего состояния сети.
+        Используется для всей логики — fire, enabled, reachability."""
+        return PetriNetModel(
+            places=list(self.places.keys()),
+            transitions=list(self.transitions.keys()),
+            arcs=[
+                ModelArc(source=a.source.name, target=a.target.name,
+                         weight=a.weight, arc_type=a.arc_type)
+                for a in self.arcs
+            ]
+        )
+
+    # ============ Маркировка ============
+
+    def get_marking(self) -> tuple:
+        return tuple(self.places[n]['tokens'] for n in sorted(self.places.keys()))
+
+    def set_marking(self, marking: tuple):
+        for i, name in enumerate(sorted(self.places.keys())):
+            if i < len(marking):
+                self.places[name]['tokens'] = marking[i]
+                self.places[name]['element'].redraw_tokens(marking[i])
 
     def fire_transition(self, t_name: str):
-        elem: PetriNetElement = self.transitions[t_name]['element']
-        for arc in elem.input_arcs:
-            if arc.arc_type == 'normal':
-                src = arc.source.name
-                self.places[src]['tokens'] -= arc.weight
-                self.places[src]['element'].redraw_tokens(self.places[src]['tokens'])
-        for arc in elem.output_arcs:
-            if arc.arc_type == 'normal':
-                tgt = arc.target.name
-                self.places[tgt]['tokens'] += arc.weight
-                self.places[tgt]['element'].redraw_tokens(self.places[tgt]['tokens'])
+        """Делегирует логику в PetriNetModel — дублирования нет."""
+        new_marking = self.build_model().fire(self.get_marking(), t_name)
+        self.set_marking(new_marking)
 
     def save_initial_state(self):
         self.initial_marking = {n: d['tokens'] for n, d in self.places.items()}
@@ -136,47 +150,17 @@ class PetriNetwork:
                 self.places[name]['element'].redraw_tokens(tokens)
 
     def reset_marking(self):
-        for name in self.places:
-            self.places[name]['tokens'] = 0
-            self.places[name]['element'].redraw_tokens(0)
-
-    def get_current_marking_tuple(self) -> tuple:
-        return tuple(self.places[n]['tokens'] for n in sorted(self.places.keys()))
-
-    def set_marking_from_tuple(self, marking_tuple: tuple):
-        for i, name in enumerate(sorted(self.places.keys())):
-            if i < len(marking_tuple):
-                self.places[name]['tokens'] = marking_tuple[i]
-                self.places[name]['element'].redraw_tokens(marking_tuple[i])
+        self.set_marking(tuple(0 for _ in self.places))
 
     # ============ Анализ ============
 
-    def build_model_from_editor(self) -> PetriNetModel:
-        places = list(self.places.keys())
-        transitions = list(self.transitions.keys())
-        arcs = [
-            ModelArc(source=a.source.name, target=a.target.name,
-                     weight=a.weight, arc_type=a.arc_type)
-            for a in self.arcs
-        ]
-        return PetriNetModel(places=places, transitions=transitions, arcs=arcs)
-
-    def build_reachability_graph(self):
-        current_marking = self.get_current_marking_tuple()
-        model = self.build_model_from_editor()
-        visited, edges, enabled_cache = model.reachability_graph(current_marking, max_states=5000)
-        self.set_marking_from_tuple(current_marking)
-        return visited, edges, enabled_cache
-
     def check_liveness(self):
-        current_marking = self.get_current_marking_tuple()
-        visited, edges, enabled_cache = self.build_reachability_graph()
-        model = self.build_model_from_editor()
+        model = self.build_model()
+        marking = self.get_marking()
+        visited, edges, enabled_cache = model.reachability_graph(marking, max_states=5000)
         live_map = model.liveness_from_reachability(visited, edges, enabled_cache)
 
         is_net_live = all(bool(live_map.get(t, False)) for t in self.transitions)
-        self.set_marking_from_tuple(current_marking)
-
         lines = [
             f"{'✓' if live_map.get(t, False) else '✗'}  {t}"
             for t in sorted(self.transitions.keys())
@@ -186,55 +170,46 @@ class PetriNetwork:
         return is_net_live
 
     def show_reachability_window(self):
-        model = self.build_model_from_editor()
-        current_marking = self.get_current_marking_tuple()
-        visited, edges, enabled_cache = model.reachability_graph(current_marking, max_states=5000)
+        model = self.build_model()
+        marking = self.get_marking()
+        visited, edges, _ = model.reachability_graph(marking, max_states=5000)
 
-        win = tk.Toplevel(self.root)  # ← был баг: self.editorroot
+        win = tk.Toplevel(self.root)
         win.title("Граф достижимости")
         win.geometry("900x600")
 
         nb = ttk.Notebook(win)
         nb.pack(fill="both", expand=True)
 
-        # Вкладка состояний
         tab_states = ttk.Frame(nb)
         nb.add(tab_states, text="Состояния")
-
         cols = ["id"] + sorted(self.places.keys())
         tv = ttk.Treeview(tab_states, columns=cols, show="headings")
         tv.pack(side="left", fill="both", expand=True)
         vs = ttk.Scrollbar(tab_states, orient="vertical", command=tv.yview)
         tv.configure(yscrollcommand=vs.set)
         vs.pack(side="right", fill="y")
-
         tv.heading("id", text="M#")
         tv.column("id", width=60, anchor="center")
         for p in sorted(self.places.keys()):
             tv.heading(p, text=p)
             tv.column(p, width=120, anchor="center")
-
         visited_sorted = sorted(visited)
         for i, m in enumerate(visited_sorted):
-            row = [f"M{i}"] + [m[j] for j in range(len(sorted(self.places.keys())))]
-            tv.insert("", "end", values=row)
+            tv.insert("", "end", values=[f"M{i}"] + list(m))
 
-        # Вкладка переходов
         tab_edges = ttk.Frame(nb)
         nb.add(tab_edges, text="Переходы")
-
         tv2 = ttk.Treeview(tab_edges, columns=("from", "t", "to"), show="headings")
         tv2.pack(side="left", fill="both", expand=True)
         vs2 = ttk.Scrollbar(tab_edges, orient="vertical", command=tv2.yview)
         tv2.configure(yscrollcommand=vs2.set)
         vs2.pack(side="right", fill="y")
-        tv2.heading("from", text="От")
-        tv2.heading("t", text="Переход")
-        tv2.heading("to", text="К")
+        for col, label in [("from", "От"), ("t", "Переход"), ("to", "К")]:
+            tv2.heading(col, text=label)
         tv2.column("from", width=100, anchor="center")
         tv2.column("t", width=200, anchor="w")
         tv2.column("to", width=100, anchor="center")
-
         idx = {m: i for i, m in enumerate(visited_sorted)}
         for a, t, b in edges:
             tv2.insert("", "end", values=(f"M{idx[a]}", t, f"M{idx[b]}"))
@@ -309,21 +284,21 @@ class PetriNetwork:
             self.load_network_data(data)
             messagebox.showinfo("Загружено", f"Сеть загружена из {filename}", parent=self.root)
 
-    def rename_element(self, elem_type: str, old_name: str):
+    def rename_element(self, elem_type: str, old_name: str) -> str | None:
         new_name = simpledialog.askstring(
             "Переименование", f"Новое имя для '{old_name}':",
             initialvalue=old_name, parent=self.root
         )
         if not new_name:
-            return
+            return None
         new_name = new_name.strip()
         if not new_name or new_name == old_name:
-            return
+            return None
 
         if elem_type == 'place':
             if new_name in self.places:
                 messagebox.showwarning("Имя", "Позиция с таким именем уже существует.", parent=self.root)
-                return
+                return None
             data = self.places.pop(old_name)
             data['element'].name = new_name
             self.places[new_name] = data
@@ -331,7 +306,7 @@ class PetriNetwork:
         else:
             if new_name in self.transitions:
                 messagebox.showwarning("Имя", "Переход с таким именем уже существует.", parent=self.root)
-                return
+                return None
             data = self.transitions.pop(old_name)
             data['element'].name = new_name
             self.transitions[new_name] = data
@@ -342,4 +317,4 @@ class PetriNetwork:
         if old_name in self.initial_marking:
             self.initial_marking[new_name] = self.initial_marking.pop(old_name)
 
-        return new_name  # вернём новое имя, чтобы caller мог обновить selection
+        return new_name

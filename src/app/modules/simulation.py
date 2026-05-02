@@ -1,38 +1,21 @@
 import tkinter as tk
 from tkinter import messagebox, simpledialog
-from typing import Callable
 
 from app.modules.petrinetwork import PetriNetwork
 
 
 class PetriSimulation:
-    """Управляет симуляцией. Знает только о PetriNetwork и root — не об editor."""
+    """Управляет симуляцией. Вся логика enabled/fire — в PetriNetModel."""
 
     def __init__(self, network: PetriNetwork, root: tk.Tk):
         self.network = network
         self.root = root
         self.animation_speed = 1000
 
-    # ============ Логика ============
-
     def get_enabled_transitions(self) -> set:
-        enabled = set()
-        for t_name, t_data in self.network.transitions.items():
-            elem = t_data['element']
-            ok = True
-            for arc in elem.input_arcs:
-                tokens = self.network.places[arc.source.name]['tokens']
-                if arc.arc_type == 'inhibitor':
-                    if tokens > 0:
-                        ok = False
-                        break
-                else:
-                    if tokens < arc.weight:
-                        ok = False
-                        break
-            if ok:
-                enabled.add(t_name)
-        return enabled
+        """Делегирует в PetriNetModel — дублирования нет."""
+        model = self.network.build_model()
+        return model.enabled_transitions(self.network.get_marking())
 
     def simulation_step(self) -> bool:
         enabled = self.get_enabled_transitions()
@@ -76,11 +59,12 @@ class PetriSimulation:
 
         for t_name in steps:
             if t_name not in self.network.transitions:
-                messagebox.showwarning("Сценарий", f"Переход {t_name} не существует.", parent=self.root)
+                messagebox.showwarning("Сценарий", f"Переход '{t_name}' не существует.",
+                                       parent=self.root)
                 return
             if t_name not in self.get_enabled_transitions():
                 messagebox.showwarning("Сценарий",
-                                       f"Переход {t_name} не разрешен в текущей разметке.",
+                                       f"Переход '{t_name}' не разрешён в текущей разметке.",
                                        parent=self.root)
                 return
             self.network.highlight_element(
@@ -98,5 +82,4 @@ class PetriSimulation:
         run_step()
 
     def update_speed(self, value: int):
-        """Вызывается из UI при изменении спиннера скорости."""
         self.animation_speed = max(100, int(value))
