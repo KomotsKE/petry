@@ -1,64 +1,72 @@
+import tkinter as tk
 from tkinter import messagebox, simpledialog
-from typing import TYPE_CHECKING
+from typing import Callable
 
-from app.modules.elements import PetriNetElement
+from app.modules.petrinetwork import PetriNetwork
 
 
 class PetriSimulation:
-    def __init__(self, canvas_manager):
+    """Управляет симуляцией. Знает только о PetriNetwork и root — не об editor."""
+
+    def __init__(self, network: PetriNetwork, root: tk.Tk):
+        self.network = network
+        self.root = root
         self.animation_speed = 1000
-        self.canvas_manager = canvas_manager
-    
-    def get_enabled_transitions(self):
+
+    # ============ Логика ============
+
+    def get_enabled_transitions(self) -> set:
         enabled = set()
-        for t_name, t_data in self.canvas_manager.petriNetwork.transitions.items():
-            elem: PetriNetElement = t_data['element']
-            enabled_flag = True
+        for t_name, t_data in self.network.transitions.items():
+            elem = t_data['element']
+            ok = True
             for arc in elem.input_arcs:
+                tokens = self.network.places[arc.source.name]['tokens']
                 if arc.arc_type == 'inhibitor':
-                    if self.canvas_manager.petriNetwork.places[arc.source.name]['tokens'] > 0:
-                        enabled_flag = False
+                    if tokens > 0:
+                        ok = False
                         break
                 else:
-                    if self.canvas_manager.petriNetwork.places[arc.source.name]['tokens'] < arc.weight:
-                        enabled_flag = False
+                    if tokens < arc.weight:
+                        ok = False
                         break
-            if enabled_flag:
+            if ok:
                 enabled.add(t_name)
         return enabled
-    
-    def simulation_step(self):
+
+    def simulation_step(self) -> bool:
         enabled = self.get_enabled_transitions()
         if not enabled:
             return False
-        
-        t_name = None
+
         enabled_sorted = sorted(enabled)
         if len(enabled_sorted) == 1:
             t_name = enabled_sorted[0]
         else:
             choice = simpledialog.askstring(
                 "Выбор перехода",
-                "Разрешенные переходы:\n" + ", ".join(enabled_sorted) + "\n\nВведите имя перехода для срабатывания:"
+                "Разрешенные переходы:\n" + ", ".join(enabled_sorted) +
+                "\n\nВведите имя перехода для срабатывания:",
+                parent=self.root
             )
-            if choice and choice in enabled:
-                t_name = choice
-            else:
-                t_name = enabled_sorted[0]
-        
-        self.canvas_manager.petriNetwork.highlight_element(self.canvas_manager.petriNetwork.transitions[t_name]['element'], 'red')
-        self.canvas_manager.root.update()
-        self.canvas_manager.root.after(200)
-        
-        self.canvas_manager.petriNetwork.fire_transition(t_name)
-        
-        self.canvas_manager.petriNetwork.clear_highlight()
+            t_name = choice if (choice and choice in enabled) else enabled_sorted[0]
+
+        self.network.highlight_element(
+            self.network.transitions[t_name]['element'], 'red'
+        )
+        self.root.update()
+        self.root.after(200)
+
+        self.network.fire_transition(t_name)
+        self.network.clear_highlight()
         return True
-    
+
     def play_scenario(self):
         scenario = simpledialog.askstring(
             "Сценарий",
-            "Введите последовательность переходов через запятую.\nПример: Обработка_С1, Перемещение, Обработка_С2"
+            "Введите последовательность переходов через запятую.\n"
+            "Пример: Обработка_С1, Перемещение, Обработка_С2",
+            parent=self.root
         )
         if not scenario:
             return
@@ -67,27 +75,28 @@ class PetriSimulation:
             return
 
         for t_name in steps:
-            if t_name not in self.canvas_manager.petriNetwork.transitions:
-                messagebox.showwarning("Сценарий", f"Переход {t_name} не существует.")
+            if t_name not in self.network.transitions:
+                messagebox.showwarning("Сценарий", f"Переход {t_name} не существует.", parent=self.root)
                 return
-            enabled = self.get_enabled_transitions()
-            if t_name not in enabled:
-                messagebox.showwarning("Сценарий", f"Переход {t_name} не разрешен в текущей разметке.")
+            if t_name not in self.get_enabled_transitions():
+                messagebox.showwarning("Сценарий",
+                                       f"Переход {t_name} не разрешен в текущей разметке.",
+                                       parent=self.root)
                 return
-            self.canvas_manager.petriNetwork.highlight_element(self.canvas_manager.petriNetwork.transitions[t_name]['element'], 'red')
-            self.canvas_manager.root.update()
-            self.canvas_manager.root.after(150)
-            self.canvas_manager.petriNetwork.fire_transition(t_name)
-            self.canvas_manager.petriNetwork.clear_highlight()
-            
+            self.network.highlight_element(
+                self.network.transitions[t_name]['element'], 'red'
+            )
+            self.root.update()
+            self.root.after(150)
+            self.network.fire_transition(t_name)
+            self.network.clear_highlight()
+
     def auto_simulation(self):
         def run_step():
             if self.simulation_step():
-                self.canvas_manager.root.after(self.animation_speed, run_step)
+                self.root.after(self.animation_speed, run_step)
         run_step()
-        
-    def update_speed(self):
-        try:
-            self.animation_speed = int(self.canvas_manager.speed_var.get())
-        except ValueError:
-            pass
+
+    def update_speed(self, value: int):
+        """Вызывается из UI при изменении спиннера скорости."""
+        self.animation_speed = max(100, int(value))
