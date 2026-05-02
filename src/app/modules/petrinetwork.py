@@ -1,6 +1,6 @@
 import json
 import math
-from tkinter import messagebox, simpledialog, ttk
+from tkinter import messagebox, simpledialog, ttk, filedialog
 from typing import List
 import tkinter as tk
 
@@ -17,6 +17,14 @@ class PetriNetwork:
         self.arcs: List[Arc] = []
         self.real_object_map = {}
         self.initial_marking = {}
+        self.selected_element = None
+        self.selected_elements = set()
+        self.selected_arc = None
+        
+        self.element_name_var = None
+        self.element_type_var = None
+        self.tokens_var = None
+        self.tokens_spinbox = None
 
     # ============ Поиск элементов ============
 
@@ -152,138 +160,6 @@ class PetriNetwork:
     def reset_marking(self):
         self.set_marking(tuple(0 for _ in self.places))
 
-    # ============ Анализ ============
-
-    def check_liveness(self):
-        model = self.build_model()
-        marking = self.get_marking()
-        visited, edges, enabled_cache = model.reachability_graph(marking, max_states=5000)
-        live_map = model.liveness_from_reachability(visited, edges, enabled_cache)
-
-        is_net_live = all(bool(live_map.get(t, False)) for t in self.transitions)
-        lines = [
-            f"{'✓' if live_map.get(t, False) else '✗'}  {t}"
-            for t in sorted(self.transitions.keys())
-        ]
-        status = "Сеть живая ✓" if is_net_live else "Сеть НЕ живая ✗"
-        messagebox.showinfo("Живость", status + "\n\n" + "\n".join(lines), parent=self.root)
-        return is_net_live
-
-    def show_reachability_window(self):
-        model = self.build_model()
-        marking = self.get_marking()
-        visited, edges, _ = model.reachability_graph(marking, max_states=5000)
-
-        win = tk.Toplevel(self.root)
-        win.title("Граф достижимости")
-        win.geometry("900x600")
-
-        nb = ttk.Notebook(win)
-        nb.pack(fill="both", expand=True)
-
-        tab_states = ttk.Frame(nb)
-        nb.add(tab_states, text="Состояния")
-        cols = ["id"] + sorted(self.places.keys())
-        tv = ttk.Treeview(tab_states, columns=cols, show="headings")
-        tv.pack(side="left", fill="both", expand=True)
-        vs = ttk.Scrollbar(tab_states, orient="vertical", command=tv.yview)
-        tv.configure(yscrollcommand=vs.set)
-        vs.pack(side="right", fill="y")
-        tv.heading("id", text="M#")
-        tv.column("id", width=60, anchor="center")
-        for p in sorted(self.places.keys()):
-            tv.heading(p, text=p)
-            tv.column(p, width=120, anchor="center")
-        visited_sorted = sorted(visited)
-        for i, m in enumerate(visited_sorted):
-            tv.insert("", "end", values=[f"M{i}"] + list(m))
-
-        tab_edges = ttk.Frame(nb)
-        nb.add(tab_edges, text="Переходы")
-        tv2 = ttk.Treeview(tab_edges, columns=("from", "t", "to"), show="headings")
-        tv2.pack(side="left", fill="both", expand=True)
-        vs2 = ttk.Scrollbar(tab_edges, orient="vertical", command=tv2.yview)
-        tv2.configure(yscrollcommand=vs2.set)
-        vs2.pack(side="right", fill="y")
-        for col, label in [("from", "От"), ("t", "Переход"), ("to", "К")]:
-            tv2.heading(col, text=label)
-        tv2.column("from", width=100, anchor="center")
-        tv2.column("t", width=200, anchor="w")
-        tv2.column("to", width=100, anchor="center")
-        idx = {m: i for i, m in enumerate(visited_sorted)}
-        for a, t, b in edges:
-            tv2.insert("", "end", values=(f"M{idx[a]}", t, f"M{idx[b]}"))
-
-        ttk.Label(win,
-                  text=f"Состояний: {len(visited)} | Рёбер: {len(edges)} | Ограничение: 5000"
-                  ).pack(side="bottom", fill="x")
-
-    # ============ Сохранение / Загрузка ============
-
-    def get_network_data(self) -> dict:
-        return {
-            'places': {
-                name: {'x': d['element'].x, 'y': d['element'].y, 'tokens': d['tokens']}
-                for name, d in self.places.items()
-            },
-            'transitions': {
-                name: {'x': d['element'].x, 'y': d['element'].y}
-                for name, d in self.transitions.items()
-            },
-            'arcs': [
-                {'source': a.source.name, 'target': a.target.name,
-                 'weight': a.weight, 'type': a.arc_type}
-                for a in self.arcs
-            ],
-            'real_objects': self.real_object_map,
-            'initial_marking': self.initial_marking,
-        }
-
-    def load_network_data(self, data: dict):
-        self.canvas.delete('all')
-        self.places.clear()
-        self.transitions.clear()
-        self.arcs.clear()
-        self.real_object_map = data.get('real_objects', {})
-        self.initial_marking = data.get('initial_marking', {})
-
-        element_map = {}
-        for name, pdata in data['places'].items():
-            self.create_place(pdata['x'], pdata['y'], name, pdata['tokens'])
-            element_map[name] = self.places[name]['element']
-        for name, tdata in data['transitions'].items():
-            self.create_transition(tdata['x'], tdata['y'], name)
-            element_map[name] = self.transitions[name]['element']
-        for arc_data in data['arcs']:
-            source = element_map.get(arc_data['source'])
-            target = element_map.get(arc_data['target'])
-            if source and target:
-                self.create_arc(source, target,
-                                arc_data.get('weight', 1),
-                                arc_data.get('type', 'normal'))
-
-    def save_to_file(self):
-        filename = tk.filedialog.asksaveasfilename(
-            defaultextension=".json",
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
-            parent=self.root
-        )
-        if filename:
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(self.get_network_data(), f, ensure_ascii=False, indent=2)
-            messagebox.showinfo("Сохранено", f"Сеть сохранена в {filename}", parent=self.root)
-
-    def load_from_file(self):
-        filename = tk.filedialog.askopenfilename(
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
-            parent=self.root
-        )
-        if filename:
-            with open(filename, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            self.load_network_data(data)
-            messagebox.showinfo("Загружено", f"Сеть загружена из {filename}", parent=self.root)
-
     def rename_element(self, elem_type: str, old_name: str) -> str | None:
         new_name = simpledialog.askstring(
             "Переименование", f"Новое имя для '{old_name}':",
@@ -318,3 +194,99 @@ class PetriNetwork:
             self.initial_marking[new_name] = self.initial_marking.pop(old_name)
 
         return new_name
+    
+    def update_tokens(self):
+        if self.selected_element and self.selected_element.type == 'place':
+            name = self.selected_element.name
+            try:
+                tokens = int(self.tokens_var.get())
+                if 0 <= tokens <= 10:
+                    self.places[name]['tokens'] = tokens
+                    self.places[name]['element'].redraw_tokens(tokens)
+            except ValueError:
+                pass
+    
+    def select_arc(self, arc: Arc):
+        self.deselect_all()
+        self.selected_arc = arc
+        if arc.line_id:
+            self.canvas.itemconfig(arc.line_id, fill="#1e88e5", width=3)
+        self.element_name_var.set(f"{arc.source.name}→{arc.target.name}")
+        self.element_type_var.set("Дуга")
+        self.tokens_var.set("0")
+        self.tokens_spinbox.configure(state='disabled')
+
+    def select_element(self, elem_type, name):
+        self.deselect_all()
+        if elem_type == 'place':
+            data = self.places[name]
+            elem = data['element']
+            self.selected_element = elem
+            self.selected_elements = {elem}
+            self.highlight_element(elem, 'blue')
+            self.element_name_var.set(name)
+            self.element_type_var.set('Позиция')
+            self.tokens_var.set(str(data['tokens']))
+            self.tokens_spinbox.configure(state='normal')
+        else:
+            data = self.transitions[name]
+            elem = data['element']
+            self.selected_element = elem
+            self.selected_elements = {elem}
+            self.highlight_element(elem, 'green')
+            self.element_name_var.set(name)
+            self.element_type_var.set('Переход')
+            self.tokens_var.set('0')
+            self.tokens_spinbox.configure(state='disabled')
+
+    def deselect_all(self):
+        self.selected_element = None
+        self.selected_elements = set()
+        if getattr(self, "selected_arc", None) is not None:
+            a = self.selected_arc
+            self.selected_arc = None
+            if a and a.line_id:
+                a.update_position()
+        self.clear_highlight()
+        self.element_name_var.set('')
+        self.element_type_var.set('')
+        self.tokens_var.set('0')
+        self.tokens_spinbox.configure(state='disabled')
+
+    def delete_selected(self, event=None):
+        if self.selected_arc is not None:
+            self.delete_arc(self.selected_arc)
+            self.selected_arc = None
+            self.deselect_all()
+            return
+
+        to_delete = list(self.selected_elements) or (
+            [self.selected_element] if self.selected_element else []
+        )
+        for elem in to_delete:
+            name = elem.name
+            for arc in list(set(elem.input_arcs) | set(elem.output_arcs)):
+                if arc in self.arcs:
+                    self.delete_arc(arc)
+            if elem.type == 'place':
+                elem.redraw_tokens(0)
+            for cid in elem.canvas_ids:
+                self.canvas.delete(cid)
+            self.canvas.delete(elem.text_id)
+            if elem.type == 'place':
+                del self.places[name]
+            else:
+                del self.transitions[name]
+            self.real_object_map.pop(name, None)
+            self.initial_marking.pop(name, None)
+
+        self.deselect_all()
+        
+    def rename_element(self, elem_type: str, name: str):
+        """Обёртка: переименовывает элемент и обновляет биндинги + selection."""
+        new_name = self.rename_element(elem_type, name)
+        if new_name:
+            self._bind_element(elem_type, new_name)
+            self.select_element(elem_type, new_name)
+            
+    

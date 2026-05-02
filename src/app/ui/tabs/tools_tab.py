@@ -44,7 +44,7 @@ class ToolsTab:
         ttk.Label(prop_frame, text="Фишки:").grid(row=2, column=0, sticky='w')
         self.tokens_var = tk.StringVar(value='0')
         self.tokens_spinbox = ttk.Spinbox(prop_frame, from_=0, to=10, textvariable=self.tokens_var,
-                                          state='readonly', command=editor.update_tokens)
+                                          state='readonly', command=editor.petriNetwork.update_tokens)
         self.tokens_spinbox.grid(row=2, column=1, sticky='ew', padx=(6, 0), pady=1)
 
     # Аксессоры для доступа к переменным из редактора

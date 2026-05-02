@@ -60,8 +60,8 @@ class UIBuilder:
         self.editor.analysis_tab = AnalysisTab(self.editor.notebook, self.editor)
 
     def _link_ui_variables(self):
-        self.editor.element_name_var = self.editor.tools_tab.get_element_name_var()
-        self.editor.element_type_var = self.editor.tools_tab.get_element_type_var()
-        self.editor.tokens_var = self.editor.tools_tab.get_tokens_var()
-        self.editor.tokens_spinbox = self.editor.tools_tab.get_tokens_spinbox()
+        self.editor.petriNetwork.element_name_var = self.editor.tools_tab.get_element_name_var()
+        self.editor.petriNetwork.element_type_var = self.editor.tools_tab.get_element_type_var()
+        self.editor.petriNetwork.tokens_var = self.editor.tools_tab.get_tokens_var()
+        self.editor.petriNetwork.tokens_spinbox = self.editor.tools_tab.get_tokens_spinbox()
         self.editor.speed_var = self.editor.simulation_tab.get_speed_var()
