@@ -3,7 +3,7 @@ from typing import Dict, Tuple
 import tkinter as tk
 
 class PetriNetElement:
-    def __init__(self, canvas, x, y, name, element_type, radius=25, width=5, height=40):
+    def __init__(self, canvas: tk.Canvas, x, y, name, element_type, radius=25, width=5, height=40):
         self.canvas = canvas
         self.x = x
         self.y = y

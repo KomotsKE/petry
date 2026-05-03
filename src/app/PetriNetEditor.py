@@ -69,3 +69,10 @@ class PetriNetEditor:
     def after_load(self):
         """Вызывается после загрузки сети — перевешивает биндинги на новые элементы."""
         self._rebind_all_elements()
+        
+    def rename_element(self, elem_type: str, name: str):
+        """Обёртка: переименовывает элемент и обновляет биндинги + selection."""
+        new_name = self.petriNetwork.rename_element(elem_type, name)
+        if new_name:
+            self._bind_element(elem_type, new_name)
+            self.petriNetwork.select_element(elem_type, new_name)

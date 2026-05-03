@@ -1,13 +1,15 @@
 import tkinter as tk
 from tkinter import messagebox, simpledialog
-from typing import Optional
-
+from typing import TYPE_CHECKING, Optional
 from app.modules.elements import Arc
 from app.modules.petrinetwork import PetriNetwork
 
+if TYPE_CHECKING:
+    from app.PetriNetEditor import PetriNetEditor
+
 
 class EditorEventHandlers:
-    def __init__(self, editor, canvas: tk.Canvas, network: PetriNetwork, root: tk.Tk):
+    def __init__(self, editor: "PetriNetEditor", canvas: tk.Canvas, network: PetriNetwork, root: tk.Tk):
         self.network = network
         self.root = root
         self.canvas = canvas

@@ -205,7 +205,7 @@ class PetriNetwork:
                     self.places[name]['element'].redraw_tokens(tokens)
             except ValueError:
                 pass
-    
+# ============ Выбор элементов ============
     def select_arc(self, arc: Arc):
         self.deselect_all()
         self.selected_arc = arc
@@ -281,12 +281,5 @@ class PetriNetwork:
             self.initial_marking.pop(name, None)
 
         self.deselect_all()
-        
-    def rename_element(self, elem_type: str, name: str):
-        """Обёртка: переименовывает элемент и обновляет биндинги + selection."""
-        new_name = self.rename_element(elem_type, name)
-        if new_name:
-            self._bind_element(elem_type, new_name)
-            self.select_element(elem_type, new_name)
             
     

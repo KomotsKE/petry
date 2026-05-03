@@ -1,8 +1,12 @@
 import tkinter as tk
 from tkinter import ttk
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.PetriNetEditor import PetriNetEditor
 
 class ToolsTab:
-    def __init__(self, parent, editor):
+    def __init__(self, parent, editor: "PetriNetEditor"):
         self.editor = editor
         self.frame = ttk.Frame(parent)
         parent.add(self.frame, text="Инструменты")
