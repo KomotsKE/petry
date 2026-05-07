@@ -38,7 +38,7 @@ class PetriNetEditor:
         
     def load_from_file(self):
         """Загружает сеть и перевешивает биндинги на новые элементы."""
-        self.petriNetwork.load_from_file()
+        self.saveload.load_from_file()
         self._rebind_all_elements()
 
     def _bind_element(self, elem_type: str, name: str):
@@ -49,7 +49,19 @@ class PetriNetEditor:
         data = self.petriNetwork.places[name] if elem_type == 'place' \
             else self.petriNetwork.transitions[name]
         elem = data['element']
-        for cid in elem.canvas_ids + [elem.text_id]:
+        
+        for cid in elem.canvas_ids:
+            for seq in ['<Button-1>', '<Control-Button-1>', '<B1-Motion>',
+                        '<ButtonRelease-1>', '<Button-3>', '<Enter>', '<Leave>',
+                        '<Double-Button-1>']:
+                self.canvas.tag_unbind(cid, seq)
+        if elem.text_id:
+            for seq in ['<Button-1>', '<Control-Button-1>', '<B1-Motion>',
+                        '<ButtonRelease-1>', '<Button-3>', '<Enter>', '<Leave>',
+                        '<Double-Button-1>']:
+                self.canvas.tag_unbind(elem.text_id, seq)
+
+        for cid in elem.canvas_ids + ([elem.text_id] if elem.text_id else []):
             self.canvas.tag_bind(
                 cid, '<Button-1>',
                 lambda e, n=name, t=elem_type: self.handlers.on_element_button1(t, n, e)
@@ -58,6 +70,10 @@ class PetriNetEditor:
                 cid, '<Button-3>',
                 lambda e, n=name, t=elem_type: self.handlers.on_right_click(e, t, n)
             )
+            show_all = getattr(self, 'show_all_names', True)
+            if not show_all:
+                self.canvas.tag_bind(cid, '<Enter>', lambda e, el=elem: el.show_name())
+                self.canvas.tag_bind(cid, '<Leave>', lambda e, el=elem: el.hide_name())
 
     def _rebind_all_elements(self):
         """Перевешивает биндинги на все элементы — нужно после load_from_file."""

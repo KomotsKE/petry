@@ -155,7 +155,7 @@ class EditorEventHandlers:
     def show_place_menu(self, event, name: str):
         menu = tk.Menu(self.root, tearoff=0)
         menu.add_command(label="Переименовать...",
-                         command=lambda: self.network.rename_element('place', name))
+                         command=lambda: self._prompt_rename('place', name))
         menu.add_command(label="Задать фишки...",
                          command=lambda: self.prompt_tokens(name))
         menu.add_separator()
@@ -165,7 +165,7 @@ class EditorEventHandlers:
     def show_transition_menu(self, event, name: str):
         menu = tk.Menu(self.root, tearoff=0)
         menu.add_command(label="Переименовать...",
-                         command=lambda: self.network.rename_element('transition', name))
+                         command=lambda: self.network._prompt_rename('transition', name))
         menu.add_separator()
         menu.add_command(label="Удалить", command=self.network.delete_selected)
         menu.tk_popup(event.x_root, event.y_root)
@@ -208,6 +208,15 @@ class EditorEventHandlers:
         elif elem_type == 'transition':
             self.network.select_element('transition', name)
             self.show_transition_menu(event, name)
+            
+    def _prompt_rename(self, elem_type: str, old_name: str):
+        """Запрашивает новое имя через диалог и вызывает rename_element"""
+        new_name = simpledialog.askstring(
+            "Переименование", f"Новое имя для '{old_name}':",
+            initialvalue=old_name, parent=self.root
+        )
+        if new_name:
+            self.network.rename_element(elem_type, old_name, new_name.strip())
 
     def set_mode(self, mode: str):
         self.mode = mode

@@ -9,6 +9,8 @@ class saveload:
         self.canvas = canvas
         self.root = root
         self.network = network
+        self.real_object_map = {}
+        self.initial_marking = {}
         
     def get_network_data(self) -> dict:
         return {

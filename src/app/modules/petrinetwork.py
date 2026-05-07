@@ -160,40 +160,61 @@ class PetriNetwork:
     def reset_marking(self):
         self.set_marking(tuple(0 for _ in self.places))
 
-    def rename_element(self, elem_type: str, old_name: str) -> str | None:
-        new_name = simpledialog.askstring(
-            "Переименование", f"Новое имя для '{old_name}':",
-            initialvalue=old_name, parent=self.root
-        )
-        if not new_name:
-            return None
-        new_name = new_name.strip()
+    def rename_element(self, elem_type: str, old_name: str, new_name: str) -> bool:
+        """
+        Переименовывает элемент.
+        Возвращает True если успешно, False если имя занято или элемент не найден.
+        """
         if not new_name or new_name == old_name:
-            return None
+            return False
 
+        # Проверка уникальности
+        if new_name in self.places or new_name in self.transitions:
+            messagebox.showerror("Ошибка", f"Элемент с именем '{new_name}' уже существует!")
+            return False
+
+        data = None
+        if elem_type == 'place' and old_name in self.places:
+            data = self.places[old_name]
+        elif elem_type == 'transition' and old_name in self.transitions:
+            data = self.transitions[old_name]
+
+        if not data:
+            return False
+
+        # Обновляем словари
         if elem_type == 'place':
-            if new_name in self.places:
-                messagebox.showwarning("Имя", "Позиция с таким именем уже существует.", parent=self.root)
-                return None
-            data = self.places.pop(old_name)
-            data['element'].name = new_name
+            del self.places[old_name]
             self.places[new_name] = data
-            self.canvas.itemconfig(data['element'].text_id, text=new_name)
         else:
-            if new_name in self.transitions:
-                messagebox.showwarning("Имя", "Переход с таким именем уже существует.", parent=self.root)
-                return None
-            data = self.transitions.pop(old_name)
-            data['element'].name = new_name
+            del self.transitions[old_name]
             self.transitions[new_name] = data
-            self.canvas.itemconfig(data['element'].text_id, text=new_name)
 
+        # Обновляем имя элемента
+        data['element'].name = new_name
+
+        # Обновляем дуги
+        for arc in self.arcs:
+            if arc['source'] == old_name:
+                arc['source'] = new_name
+            if arc['target'] == old_name:
+                arc['target'] = new_name
+
+        # Обновляем начальную разметку
+        if old_name in self.initial_marking:
+            val = self.initial_marking.pop(old_name)
+            self.initial_marking[new_name] = val
+
+        # Обновляем real_object_map если есть
         if old_name in self.real_object_map:
             self.real_object_map[new_name] = self.real_object_map.pop(old_name)
-        if old_name in self.initial_marking:
-            self.initial_marking[new_name] = self.initial_marking.pop(old_name)
 
-        return new_name
+        # Обновляем текст на холсте
+        if data['element'].text_id:
+            self.canvas.itemconfig(data['element'].text_id, text=new_name)
+
+        return True
+
     
     def update_tokens(self):
         if self.selected_element and self.selected_element.type == 'place':

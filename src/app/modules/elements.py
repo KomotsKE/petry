@@ -18,6 +18,7 @@ class PetriNetElement:
         self.token_ids = []           # ID фишек (только для позиции)
         self.input_arcs : list[Arc] = []
         self.output_arcs : list[Arc] = []
+        self.name_hidden = True 
         
     def draw(self, tokens=0):
         """Отрисовывает элемент на холсте"""
@@ -35,12 +36,43 @@ class PetriNetElement:
             rect_id = self.canvas.create_rectangle(x1, y1, x2, y2,
                                                    fill='lightgray', outline='black', width=2)
             self.canvas_ids = [rect_id]
-        # Текст
-        self.text_id = self.canvas.create_text(self.x, self.y, text=self.name,
-                                               font=('Arial', 10, 'bold'))
+        # Текст (имя) - изначально скрыто
+        self._draw_name()
         # Фишки, если есть
         if self.type == 'place' and tokens > 0:
             self.redraw_tokens(tokens)
+            
+    def _draw_name(self):
+        """Рисует имя элемента снизу по центру"""
+        if self.text_id:
+            self.canvas.delete(self.text_id)
+
+        if self.name_hidden:
+            self.text_id = None
+            return
+
+        # Позиция текста: снизу по центру элемента
+        if self.type == 'place':
+            text_x = self.x
+            text_y = self.y + self.radius + 12
+        else:
+            text_x = self.x
+            text_y = self.y + self.height + 12
+
+        self.text_id = self.canvas.create_text(text_x, text_y, text=self.name,
+                                               font=('Arial', 9, 'normal'), fill='black')
+        
+    def show_name(self):
+        if not self.name_hidden:
+            return
+        self.name_hidden = False
+        self._draw_name()
+
+    def hide_name(self):
+        if self.name_hidden:
+            return
+        self.name_hidden = True
+        self._draw_name()
     
     def redraw_tokens(self, tokens):
         """Перерисовывает фишки позиции"""
