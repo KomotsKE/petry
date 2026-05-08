@@ -20,13 +20,18 @@ class PetriNetwork:
         self.selected_element = None
         self.selected_elements = set()
         self.selected_arc = None
-        
+
+        # UI-переменные — заполняются из UIBuilder.post_build()
         self.element_name_var = None
         self.element_type_var = None
         self.tokens_var = None
         self.tokens_spinbox = None
+        self.priority_var = None
+        self.priority_spinbox = None
+        self.label_var = None
+        self.label_entry = None
 
-    # ============ Поиск элементов ============
+    # ── Поиск ─────────────────────────────────────────────────────────────
 
     def get_element_at(self, x, y) -> PetriNetElement | None:
         for data in self.transitions.values():
@@ -39,7 +44,7 @@ class PetriNetwork:
                 return elem
         return None
 
-    # ============ Подсветка ============
+    # ── Подсветка ─────────────────────────────────────────────────────────
 
     def clear_highlight(self):
         for data in self.places.values():
@@ -51,7 +56,7 @@ class PetriNetwork:
         self.clear_highlight()
         elem.highlight(color)
 
-    # ============ Создание элементов ============
+    # ── Создание элементов ────────────────────────────────────────────────
 
     def create_place(self, x, y, name=None, tokens=0) -> str:
         if name is None:
@@ -63,12 +68,14 @@ class PetriNetwork:
         self.places[name] = {'element': element, 'tokens': tokens}
         return name
 
-    def create_transition(self, x, y, name=None) -> str:
+    def create_transition(self, x, y, name=None, priority=1, label="") -> str:
         if name is None:
             name = f"T{len(self.transitions) + 1}"
         while name in self.transitions:
             name = f"T{len(self.transitions) + 1}"
         element = PetriNetElement(self.canvas, x, y, name, 'transition')
+        element.priority = max(1, int(priority))
+        element.label = label or ""
         element.draw()
         self.transitions[name] = {'element': element}
         return name
@@ -113,11 +120,9 @@ class PetriNetwork:
             return
         arc.set_properties(weight=weight, arc_type=arc_type.strip())
 
-    # ============ Доменная модель ============
+    # ── Доменная модель ───────────────────────────────────────────────────
 
     def build_model(self) -> PetriNetModel:
-        """Строит чистую доменную модель из текущего состояния сети.
-        Используется для всей логики — fire, enabled, reachability."""
         return PetriNetModel(
             places=list(self.places.keys()),
             transitions=list(self.transitions.keys()),
@@ -128,7 +133,7 @@ class PetriNetwork:
             ]
         )
 
-    # ============ Маркировка ============
+    # ── Маркировка ────────────────────────────────────────────────────────
 
     def get_marking(self) -> tuple:
         return tuple(self.places[n]['tokens'] for n in sorted(self.places.keys()))
@@ -140,7 +145,6 @@ class PetriNetwork:
                 self.places[name]['element'].redraw_tokens(marking[i])
 
     def fire_transition(self, t_name: str):
-        """Делегирует логику в PetriNetModel — дублирования нет."""
         new_marking = self.build_model().fire(self.get_marking(), t_name)
         self.set_marking(new_marking)
 
@@ -161,14 +165,9 @@ class PetriNetwork:
         self.set_marking(tuple(0 for _ in self.places))
 
     def rename_element(self, elem_type: str, old_name: str, new_name: str) -> bool:
-        """
-        Переименовывает элемент.
-        Возвращает True если успешно, False если имя занято или элемент не найден.
-        """
         if not new_name or new_name == old_name:
             return False
 
-        # Проверка уникальности
         if new_name in self.places or new_name in self.transitions:
             messagebox.showerror("Ошибка", f"Элемент с именем '{new_name}' уже существует!")
             return False
@@ -182,7 +181,6 @@ class PetriNetwork:
         if not data:
             return False
 
-        # Обновляем словари
         if elem_type == 'place':
             del self.places[old_name]
             self.places[new_name] = data
@@ -190,32 +188,22 @@ class PetriNetwork:
             del self.transitions[old_name]
             self.transitions[new_name] = data
 
-        # Обновляем имя элемента
         data['element'].name = new_name
 
-        # Обновляем дуги
-        for arc in self.arcs:
-            if arc['source'] == old_name:
-                arc['source'] = new_name
-            if arc['target'] == old_name:
-                arc['target'] = new_name
-
-        # Обновляем начальную разметку
         if old_name in self.initial_marking:
             val = self.initial_marking.pop(old_name)
             self.initial_marking[new_name] = val
 
-        # Обновляем real_object_map если есть
         if old_name in self.real_object_map:
             self.real_object_map[new_name] = self.real_object_map.pop(old_name)
 
-        # Обновляем текст на холсте
         if data['element'].text_id:
             self.canvas.itemconfig(data['element'].text_id, text=new_name)
 
         return True
 
-    
+    # ── Обновление свойств из UI ──────────────────────────────────────────
+
     def update_tokens(self):
         if self.selected_element and self.selected_element.type == 'place':
             name = self.selected_element.name
@@ -226,7 +214,29 @@ class PetriNetwork:
                     self.places[name]['element'].redraw_tokens(tokens)
             except ValueError:
                 pass
-# ============ Выбор элементов ============
+
+    def update_priority(self, *_):
+        """Вызывается при изменении spinbox приоритета."""
+        if not self.selected_element or self.selected_element.type != 'transition':
+            return
+        try:
+            p = int(self.priority_var.get())
+            p = max(1, p)
+            self.selected_element.priority = p
+            self.selected_element.redraw_priority()
+        except ValueError:
+            pass
+
+    def update_label(self, *_):
+        """Вызывается при изменении поля метки."""
+        if not self.selected_element or self.selected_element.type != 'transition':
+            return
+        lbl = self.label_var.get()
+        self.selected_element.label = lbl
+        self.selected_element.redraw_label()
+
+    # ── Выбор элементов ───────────────────────────────────────────────────
+
     def select_arc(self, arc: Arc):
         self.deselect_all()
         self.selected_arc = arc
@@ -236,6 +246,10 @@ class PetriNetwork:
         self.element_type_var.set("Дуга")
         self.tokens_var.set("0")
         self.tokens_spinbox.configure(state='disabled')
+        self.priority_var.set("1")
+        self.priority_spinbox.configure(state='disabled')
+        self.label_var.set("")
+        self.label_entry.configure(state='disabled')
 
     def select_element(self, elem_type, name):
         self.deselect_all()
@@ -249,6 +263,10 @@ class PetriNetwork:
             self.element_type_var.set('Позиция')
             self.tokens_var.set(str(data['tokens']))
             self.tokens_spinbox.configure(state='normal')
+            self.priority_var.set("1")
+            self.priority_spinbox.configure(state='disabled')
+            self.label_var.set("")
+            self.label_entry.configure(state='disabled')
         else:
             data = self.transitions[name]
             elem = data['element']
@@ -259,6 +277,10 @@ class PetriNetwork:
             self.element_type_var.set('Переход')
             self.tokens_var.set('0')
             self.tokens_spinbox.configure(state='disabled')
+            self.priority_var.set(str(elem.priority))
+            self.priority_spinbox.configure(state='normal')
+            self.label_var.set(elem.label)
+            self.label_entry.configure(state='normal')
 
     def deselect_all(self):
         self.selected_element = None
@@ -273,6 +295,10 @@ class PetriNetwork:
         self.element_type_var.set('')
         self.tokens_var.set('0')
         self.tokens_spinbox.configure(state='disabled')
+        self.priority_var.set('1')
+        self.priority_spinbox.configure(state='disabled')
+        self.label_var.set('')
+        self.label_entry.configure(state='disabled')
 
     def delete_selected(self, event=None):
         if self.selected_arc is not None:
@@ -294,6 +320,11 @@ class PetriNetwork:
             for cid in elem.canvas_ids:
                 self.canvas.delete(cid)
             self.canvas.delete(elem.text_id)
+            if elem.label_id:
+                self.canvas.delete(elem.label_id)
+            # удаляем бейдж приоритета
+            for cid in self.canvas.find_withtag(elem._priority_badge_tag()):
+                self.canvas.delete(cid)
             if elem.type == 'place':
                 del self.places[name]
             else:
@@ -302,5 +333,3 @@ class PetriNetwork:
             self.initial_marking.pop(name, None)
 
         self.deselect_all()
-            
-    

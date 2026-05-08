@@ -5,19 +5,19 @@ from app.ui.tabs.simulation_tab import SimulationTab
 from app.ui.tabs.marking_tab import MarkingTab
 from app.ui.tabs.analysis_tab import AnalysisTab
 
+
 class UIBuilder:
     def __init__(self, editor):
         self.editor = editor
         self.root = editor.root
         self.pre_build()
-        
+
     def pre_build(self):
         self._setup_style()
         self._create_main_panels()
         self._create_canvas()
-        
+
     def post_build(self):
-        """Главный метод сборки всего UI"""
         self._create_status_bar()
         self._create_notebook()
         self._create_tabs()
@@ -60,8 +60,14 @@ class UIBuilder:
         self.editor.analysis_tab = AnalysisTab(self.editor.notebook, self.editor)
 
     def _link_ui_variables(self):
-        self.editor.petriNetwork.element_name_var = self.editor.tools_tab.get_element_name_var()
-        self.editor.petriNetwork.element_type_var = self.editor.tools_tab.get_element_type_var()
-        self.editor.petriNetwork.tokens_var = self.editor.tools_tab.get_tokens_var()
-        self.editor.petriNetwork.tokens_spinbox = self.editor.tools_tab.get_tokens_spinbox()
+        net = self.editor.petriNetwork
+        tab = self.editor.tools_tab
+        net.element_name_var  = tab.get_element_name_var()
+        net.element_type_var  = tab.get_element_type_var()
+        net.tokens_var        = tab.get_tokens_var()
+        net.tokens_spinbox    = tab.get_tokens_spinbox()
+        net.priority_var      = tab.get_priority_var()
+        net.priority_spinbox  = tab.get_priority_spinbox()
+        net.label_var         = tab.get_label_var()
+        net.label_entry       = tab.get_label_entry()
         self.editor.speed_var = self.editor.simulation_tab.get_speed_var()

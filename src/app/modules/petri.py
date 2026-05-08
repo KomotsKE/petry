@@ -117,7 +117,7 @@ class PetriNetModel:
             en = self.enabled_transitions(m)
             enabled_cache[m] = en
 
-            for t in en:  # сортировку убрал — ускорение
+            for t in en: 
                 m2 = self.fire(m, t)
                 edges.append((m, t, m2))
 

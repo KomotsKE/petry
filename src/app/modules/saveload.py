@@ -1,8 +1,9 @@
 import json
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 
 from app.modules.petrinetwork import PetriNetwork
 import tkinter as tk
+
 
 class saveload:
     def __init__(self, canvas: tk.Canvas, root: tk.Tk, network: PetriNetwork):
@@ -11,7 +12,7 @@ class saveload:
         self.network = network
         self.real_object_map = {}
         self.initial_marking = {}
-        
+
     def get_network_data(self) -> dict:
         return {
             'places': {
@@ -19,7 +20,12 @@ class saveload:
                 for name, d in self.network.places.items()
             },
             'transitions': {
-                name: {'x': d['element'].x, 'y': d['element'].y}
+                name: {
+                    'x': d['element'].x,
+                    'y': d['element'].y,
+                    'priority': d['element'].priority,
+                    'label': d['element'].label,
+                }
                 for name, d in self.network.transitions.items()
             },
             'arcs': [
@@ -43,9 +49,15 @@ class saveload:
         for name, pdata in data['places'].items():
             self.network.create_place(pdata['x'], pdata['y'], name, pdata['tokens'])
             element_map[name] = self.network.places[name]['element']
+
         for name, tdata in data['transitions'].items():
-            self.network.create_transition(tdata['x'], tdata['y'], name)
+            self.network.create_transition(
+                tdata['x'], tdata['y'], name,
+                priority=tdata.get('priority', 1),
+                label=tdata.get('label', "")
+            )
             element_map[name] = self.network.transitions[name]['element']
+
         for arc_data in data['arcs']:
             source = element_map.get(arc_data['source'])
             target = element_map.get(arc_data['target'])
@@ -55,7 +67,7 @@ class saveload:
                                         arc_data.get('type', 'normal'))
 
     def save_to_file(self):
-        filename = tk.filedialog.asksaveasfilename(
+        filename = filedialog.asksaveasfilename(
             defaultextension=".json",
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
             parent=self.root
@@ -66,7 +78,7 @@ class saveload:
             messagebox.showinfo("Сохранено", f"Сеть сохранена в {filename}", parent=self.root)
 
     def load_from_file(self):
-        filename = tk.filedialog.askopenfilename(
+        filename = filedialog.askopenfilename(
             filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
             parent=self.root
         )

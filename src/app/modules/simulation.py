@@ -13,26 +13,44 @@ class PetriSimulation:
         self.animation_speed = 1000
 
     def get_enabled_transitions(self) -> set:
-        """Делегирует в PetriNetModel — дублирования нет."""
         model = self.network.build_model()
         return model.enabled_transitions(self.network.get_marking())
+
+    def _pick_by_priority(self, enabled: set) -> str:
+        """
+        Из множества активных переходов выбирает тот (или те),
+        у кого наибольший приоритет. Если остаётся один — возвращает его.
+        Если несколько с одинаковым максимальным приоритетом — спрашивает.
+        """
+        # Собираем (priority, name) для каждого активного перехода
+        candidates = []
+        for t_name in enabled:
+            elem = self.network.transitions[t_name]['element']
+            candidates.append((elem.priority, t_name))
+
+        max_priority = max(p for p, _ in candidates)
+        top = [name for p, name in candidates if p == max_priority]
+
+        if len(top) == 1:
+            return top[0]
+
+        # Несколько переходов с одинаковым максимальным приоритетом
+        top_sorted = sorted(top)
+        choice = simpledialog.askstring(
+            "Выбор перехода",
+            f"Активные переходы (приоритет {max_priority}):\n" +
+            ", ".join(top_sorted) +
+            "\n\nВведите имя перехода для срабатывания:",
+            parent=self.root
+        )
+        return choice if (choice and choice in top) else top_sorted[0]
 
     def simulation_step(self) -> bool:
         enabled = self.get_enabled_transitions()
         if not enabled:
             return False
 
-        enabled_sorted = sorted(enabled)
-        if len(enabled_sorted) == 1:
-            t_name = enabled_sorted[0]
-        else:
-            choice = simpledialog.askstring(
-                "Выбор перехода",
-                "Разрешенные переходы:\n" + ", ".join(enabled_sorted) +
-                "\n\nВведите имя перехода для срабатывания:",
-                parent=self.root
-            )
-            t_name = choice if (choice and choice in enabled) else enabled_sorted[0]
+        t_name = self._pick_by_priority(enabled)
 
         self.network.highlight_element(
             self.network.transitions[t_name]['element'], 'red'
@@ -48,7 +66,7 @@ class PetriSimulation:
         scenario = simpledialog.askstring(
             "Сценарий",
             "Введите последовательность переходов через запятую.\n"
-            "Пример: Обработка_С1, Перемещение, Обработка_С2",
+            "Пример: T1, T2, T3",
             parent=self.root
         )
         if not scenario:
