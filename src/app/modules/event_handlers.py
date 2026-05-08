@@ -151,29 +151,40 @@ class EditorEventHandlers:
         self.network.places[place_name]['tokens'] = int(val)
         self.network.places[place_name]['element'].redraw_tokens(int(val))
         self.network.tokens_var.set(str(val))
-    
+
     def show_place_menu(self, event, name: str):
         menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label="Переименовать...",
-                         command=lambda: self._prompt_rename('place', name))
-        menu.add_command(label="Задать фишки...",
-                         command=lambda: self.prompt_tokens(name))
+        # Важно: откладываем вызов диалога через after(), чтобы grab меню
+        # успел освободиться до того, как simpledialog попытается захватить фокус.
+        menu.add_command(
+            label="Переименовать...",
+            command=lambda: self.root.after(0, lambda: self._prompt_rename('place', name))
+        )
+        menu.add_command(
+            label="Задать фишки...",
+            command=lambda: self.root.after(0, lambda: self.prompt_tokens(name))
+        )
         menu.add_separator()
         menu.add_command(label="Удалить", command=self.network.delete_selected)
         menu.tk_popup(event.x_root, event.y_root)
 
     def show_transition_menu(self, event, name: str):
         menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label="Переименовать...",
-                         command=lambda: self.network._prompt_rename('transition', name))
+        # Исправлено: было self.network._prompt_rename (метода нет в PetriNetwork)
+        menu.add_command(
+            label="Переименовать...",
+            command=lambda: self.root.after(0, lambda: self._prompt_rename('transition', name))
+        )
         menu.add_separator()
         menu.add_command(label="Удалить", command=self.network.delete_selected)
         menu.tk_popup(event.x_root, event.y_root)
 
     def show_arc_menu(self, event, arc: Arc):
         menu = tk.Menu(self.root, tearoff=0)
-        menu.add_command(label="Свойства дуги...",
-                         command=lambda: self.network.edit_arc_properties(arc))
+        menu.add_command(
+            label="Свойства дуги...",
+            command=lambda: self.root.after(0, lambda: self.network.edit_arc_properties(arc))
+        )
         menu.add_command(label="Удалить дугу",
                          command=lambda: self.network.delete_arc(arc))
         menu.tk_popup(event.x_root, event.y_root)
@@ -208,14 +219,14 @@ class EditorEventHandlers:
         elif elem_type == 'transition':
             self.network.select_element('transition', name)
             self.show_transition_menu(event, name)
-            
+
     def _prompt_rename(self, elem_type: str, old_name: str):
         """Запрашивает новое имя через диалог и вызывает rename_element"""
         new_name = simpledialog.askstring(
             "Переименование", f"Новое имя для '{old_name}':",
             initialvalue=old_name, parent=self.root
         )
-        if new_name:
+        if new_name and new_name.strip():
             self.network.rename_element(elem_type, old_name, new_name.strip())
 
     def set_mode(self, mode: str):

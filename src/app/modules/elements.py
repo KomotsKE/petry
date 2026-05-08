@@ -18,7 +18,8 @@ class PetriNetElement:
         self.token_ids = []           # ID фишек (только для позиции)
         self.input_arcs : list[Arc] = []
         self.output_arcs : list[Arc] = []
-        self.name_hidden = True 
+        # Имена показываются по умолчанию
+        self.name_hidden = False
         
     def draw(self, tokens=0):
         """Отрисовывает элемент на холсте"""
@@ -36,7 +37,7 @@ class PetriNetElement:
             rect_id = self.canvas.create_rectangle(x1, y1, x2, y2,
                                                    fill='lightgray', outline='black', width=2)
             self.canvas_ids = [rect_id]
-        # Текст (имя) - изначально скрыто
+        # Текст (имя) - изначально видно
         self._draw_name()
         # Фишки, если есть
         if self.type == 'place' and tokens > 0:
@@ -146,7 +147,6 @@ class PetriNetElement:
     
     def highlight(self, color='red', width=3):
         """Подсветка элемента"""
-        
         for cid in self.canvas_ids:
             self.canvas.itemconfig(cid, outline=color, width=width)
     

@@ -30,19 +30,6 @@ class ToolsTab:
         ttk.Radiobutton(palette, text="→ Дуга", variable=self.tool_var, value="add_arc",
                         command=lambda: editor.handlers.set_mode("add_arc")).pack(fill="x", pady=2)
 
-        ttk.Separator(self.frame, orient='horizontal').pack(fill='x', pady=10)
-
-        # Работа с файлами
-        ttk.Label(self.frame, text="Файл:", font=('Arial', 10, 'bold')).pack(pady=5)
-        file_frame = ttk.Frame(self.frame)
-        file_frame.pack(fill="x", padx=10)
-        ttk.Button(file_frame, text="Сохранить сеть",
-                   command=editor.saveload.save_to_file).pack(fill="x", pady=2)
-        ttk.Button(file_frame, text="Загрузить сеть",
-                   command=self._on_load_network).pack(fill="x", pady=2)
-        
-        ttk.Separator(self.frame, orient='horizontal').pack(fill='x', pady=10)
-
         # Панель свойств
         ttk.Label(self.frame, text="Свойства:", font=('Arial', 10, 'bold')).pack(pady=5)
         prop_frame = ttk.Frame(self.frame)
@@ -71,7 +58,8 @@ class ToolsTab:
         ttk.Separator(self.frame, orient='horizontal').pack(fill='x', pady=10)
 
         # Кнопка показа/скрытия имён
-        self.show_names_var = tk.BooleanVar(value=False)
+        # True — имена видны по умолчанию (соответствует name_hidden=False в PetriNetElement)
+        self.show_names_var = tk.BooleanVar(value=True)
         self.show_names_btn = ttk.Checkbutton(
             self.frame,
             text="Показывать имена всех элементов",
@@ -85,82 +73,7 @@ class ToolsTab:
     def _toggle_show_all_names(self):
         """Показывает или скрывает имена всех элементов сети."""
         show = self.show_names_var.get()
-        for data in self.editor.petriNetwork.places.values():
-            elem = data['element']
-            if show:
-                elem.show_name()
-            else:
-                elem.hide_name()
-        for data in self.editor.petriNetwork.transitions.values():
-            elem = data['element']
-            if show:
-                elem.show_name()
-            else:
-                elem.hide_name()
-                
-    def _on_name_changed(self, event=None):
-        """Обработчик изменения имени элемента из панели свойств."""
-        new_name = self.element_name_var.get().strip()
-        if not new_name or not self.editor.petriNetwork.selected_element:
-            return
-
-        elem = self.editor.petriNetwork.selected_element
-        old_name = elem.name
-        elem_type = elem.type
-
-        # Если имя не изменилось — ничего не делаем
-        if new_name == old_name:
-            return
-
-        # Проверяем, нет ли элемента с таким именем
-        if elem_type == 'place':
-            if new_name in self.editor.petriNetwork.places:
-                messagebox.showwarning("Имя", "Позиция с таким именем уже существует.", parent=self.editor.root)
-                self.element_name_var.set(old_name)
-                return
-        else:  # transition
-            if new_name in self.editor.petriNetwork.transitions:
-                messagebox.showwarning("Имя", "Переход с таким именем уже существует.", parent=self.editor.root)
-                self.element_name_var.set(old_name)
-                return
-
-        # Переименовываем элемент напрямую (без диалога)
-        self._do_rename(elem_type, old_name, new_name)
-
-    def _do_rename(self, elem_type: str, old_name: str, new_name: str):
-        """Выполняет переименование элемента без диалога."""
-        if elem_type == 'place':
-            data = self.editor.petriNetwork.places.pop(old_name)
-            data['element'].name = new_name
-            self.editor.petriNetwork.places[new_name] = data
-        else:
-            data = self.editor.petriNetwork.transitions.pop(old_name)
-            data['element'].name = new_name
-            self.editor.petriNetwork.transitions[new_name] = data
-
-        # Обновляем real_object_map и initial_marking
-        if old_name in self.editor.petriNetwork.real_object_map:
-            self.editor.petriNetwork.real_object_map[new_name] = \
-                self.editor.petriNetwork.real_object_map.pop(old_name)
-        if old_name in self.editor.petriNetwork.initial_marking:
-            self.editor.petriNetwork.initial_marking[new_name] = \
-                self.editor.petriNetwork.initial_marking.pop(old_name)
-
-        # Обновляем текст на холсте
-        if data['element'].text_id:
-            self.editor.canvas.itemconfig(data['element'].text_id, text=new_name)
-
-        # Перевешиваем биндинги на новый элемент
-        self.editor._bind_element(elem_type, new_name)
-
-        # Обновляем выделение
-        self.editor.petriNetwork.select_element(elem_type, new_name)
-
-        
-    def _toggle_show_all_names(self):
-        """Показывает или скрывает имена всех элементов сети."""
-        show = self.show_names_var.get()
-        # Сохраняем состояние в редакторе для корректной работы наведения
+        # Сохраняем состояние в редакторе для корректной работы hover-биндингов
         self.editor.show_all_names = show
 
         for data in self.editor.petriNetwork.places.values():
@@ -176,9 +89,58 @@ class ToolsTab:
             else:
                 elem.hide_name()
 
-        # Перевешиваем биндинги на все элементы, чтобы обновить обработчики наведения
+        # Перевешиваем биндинги — чтобы hover включался/выключался корректно
         self.editor._rebind_all_elements()
 
+    def _on_name_changed(self, event=None):
+        """Обработчик изменения имени элемента из панели свойств."""
+        new_name = self.element_name_var.get().strip()
+        if not new_name or not self.editor.petriNetwork.selected_element:
+            return
+
+        elem = self.editor.petriNetwork.selected_element
+        old_name = elem.name
+        elem_type = elem.type
+
+        if new_name == old_name:
+            return
+
+        if elem_type == 'place':
+            if new_name in self.editor.petriNetwork.places:
+                messagebox.showwarning("Имя", "Позиция с таким именем уже существует.", parent=self.editor.root)
+                self.element_name_var.set(old_name)
+                return
+        else:
+            if new_name in self.editor.petriNetwork.transitions:
+                messagebox.showwarning("Имя", "Переход с таким именем уже существует.", parent=self.editor.root)
+                self.element_name_var.set(old_name)
+                return
+
+        self._do_rename(elem_type, old_name, new_name)
+
+    def _do_rename(self, elem_type: str, old_name: str, new_name: str):
+        """Выполняет переименование элемента без диалога."""
+        if elem_type == 'place':
+            data = self.editor.petriNetwork.places.pop(old_name)
+            data['element'].name = new_name
+            self.editor.petriNetwork.places[new_name] = data
+        else:
+            data = self.editor.petriNetwork.transitions.pop(old_name)
+            data['element'].name = new_name
+            self.editor.petriNetwork.transitions[new_name] = data
+
+        if old_name in self.editor.petriNetwork.real_object_map:
+            self.editor.petriNetwork.real_object_map[new_name] = \
+                self.editor.petriNetwork.real_object_map.pop(old_name)
+        if old_name in self.editor.petriNetwork.initial_marking:
+            self.editor.petriNetwork.initial_marking[new_name] = \
+                self.editor.petriNetwork.initial_marking.pop(old_name)
+
+        if data['element'].text_id:
+            self.editor.canvas.itemconfig(data['element'].text_id, text=new_name)
+
+        self.editor._bind_element(elem_type, new_name)
+        self.editor.petriNetwork.select_element(elem_type, new_name)
 
     # Аксессоры для доступа к переменным из редактора
     def get_element_name_var(self):
@@ -196,4 +158,3 @@ class ToolsTab:
     def _on_load_network(self):
         self.editor.saveload.load_from_file()
         self.editor._rebind_all_elements()
-
