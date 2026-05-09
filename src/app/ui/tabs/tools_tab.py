@@ -93,6 +93,7 @@ class ToolsTab:
         self.label_entry.bind('<FocusOut>', lambda e: editor.petriNetwork.update_label())
         self.label_var.trace_add('write', editor.petriNetwork.update_label)
 
+        # Задержка (только для переходов)
         ttk.Label(prop, text="Задержка (мс):").grid(row=5, column=0, sticky='w', pady=1)
         self.delay_var = tk.StringVar(value='0')
         self.delay_spinbox = ttk.Spinbox(

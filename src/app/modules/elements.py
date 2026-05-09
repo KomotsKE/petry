@@ -8,7 +8,7 @@ class PetriNetElement:
         self.x = x
         self.y = y
         self.name = name
-        self.type = element_type  # 'place' или 'transition'
+        self.type = element_type
         self.radius = radius
         self.width = width
         self.height = height
@@ -19,13 +19,21 @@ class PetriNetElement:
         self.token_ids = []
         self.input_arcs: list = []
         self.output_arcs: list = []
-        self.name_hidden = False    # имена видны по умолчанию
+        self.name_hidden = False
 
         # Свойства перехода
-        self.priority = 1           # приоритет
-        self.label = ""             # метка-описание
-        self.labels_hidden = False  # глобальное скрытие меток
-        self.delay = 0              # задержка срабатывания в мс
+        self.priority = 1
+        self.label = ""
+        self.labels_hidden = False
+        self.delay = 0
+
+    # ── Теги для canvas-объектов ───────────────────────────────────────────
+
+    def _priority_badge_tag(self) -> str:
+        return f"pbadge:{id(self)}"
+
+    def _delay_badge_tag(self) -> str:
+        return f"dbadge:{id(self)}"
 
     # ── Отрисовка ──────────────────────────────────────────────────────────
 
@@ -43,7 +51,7 @@ class PetriNetElement:
                                                    fill='lightgray', outline='black', width=2)
             self.canvas_ids = [rect_id]
 
-        self._draw_name()       # вызывает _draw_label внутри
+        self._draw_name()
         self._draw_priority_badge()
         self._draw_delay_badge()
         if self.type == 'place' and tokens > 0:
@@ -58,7 +66,6 @@ class PetriNetElement:
         if self.text_id:
             self.canvas.delete(self.text_id)
             self.text_id = None
-
         if not self.name_hidden:
             self.text_id = self.canvas.create_text(
                 self.x, self._name_bottom_y(),
@@ -67,17 +74,13 @@ class PetriNetElement:
         self._draw_label()
 
     def _draw_label(self):
-        """Метка перехода курсивом под именем."""
         if self.label_id:
             self.canvas.delete(self.label_id)
             self.label_id = None
-
         if self.type != 'transition' or not self.label or self.labels_hidden:
             return
-
         base_y = self._name_bottom_y()
         label_y = base_y + (14 if not self.name_hidden else 0)
-
         self.label_id = self.canvas.create_text(
             self.x, label_y,
             text=f"[{self.label}]",
@@ -85,46 +88,35 @@ class PetriNetElement:
             fill='#444'
         )
 
-    # ── Бейдж приоритета ───────────────────────────────────────────────────
-
-    def _priority_badge_tag(self) -> str:
-        return f"pbadge:{id(self)}"
-
     def _draw_priority_badge(self):
-        """Красный кружок с цифрой в правом верхнем углу, если priority > 1."""
         tag = self._priority_badge_tag()
         for cid in self.canvas.find_withtag(tag):
             self.canvas.delete(cid)
-
         if self.type != 'transition' or self.priority <= 1:
             return
-
         bx = self.x + self.width - 1
         by = self.y - self.height + 1
         r = 8
         self.canvas.create_oval(bx - r, by - r, bx + r, by + r,
-                                 fill='#e53935', outline='white', width=1,
-                                 tags=(tag,))
+                                 fill='#e53935', outline='white', width=1, tags=(tag,))
         self.canvas.create_text(bx, by, text=str(self.priority),
-                                 font=('Arial', 7, 'bold'), fill='white',
-                                 tags=(tag,))
-
-    # ── Значок задержки ────────────────────────────────────────────────────
-
-    def _delay_badge_tag(self) -> str:
-        return f"dbadge:{id(self)}"
+                                 font=('Arial', 7, 'bold'), fill='white', tags=(tag,))
 
     def _draw_delay_badge(self):
         tag = self._delay_badge_tag()
         for cid in self.canvas.find_withtag(tag):
             self.canvas.delete(cid)
-
         if self.type != 'transition' or self.delay <= 0:
             return
-
+        base_y = self._name_bottom_y()
+        offset = 0
+        if not self.name_hidden:
+            offset += 14
+        if self.label:
+            offset += 14
         text = f"⏱{self.delay}ms" if self.delay < 1000 else f"⏱{self.delay // 1000}s"
         self.canvas.create_text(
-            self.x, self.y + self.height + 30,
+            self.x, base_y + offset,
             text=text,
             font=('Arial', 10, 'bold'),
             fill='#1565c0',
@@ -161,7 +153,6 @@ class PetriNetElement:
         self.token_ids.clear()
         if tokens == 0:
             return
-
         r = self.token_radius
         positions = []
         if tokens == 1:
@@ -203,6 +194,21 @@ class PetriNetElement:
         for arc in self.input_arcs + self.output_arcs:
             arc.update_position()
 
+    def delete_from_canvas(self):
+        """Удаляет все canvas-объекты элемента включая бейджи."""
+        for cid in self.canvas_ids:
+            self.canvas.delete(cid)
+        if self.text_id:
+            self.canvas.delete(self.text_id)
+        if self.label_id:
+            self.canvas.delete(self.label_id)
+        for tid in self.token_ids:
+            self.canvas.delete(tid)
+        for cid in self.canvas.find_withtag(self._priority_badge_tag()):
+            self.canvas.delete(cid)
+        for cid in self.canvas.find_withtag(self._delay_badge_tag()):
+            self.canvas.delete(cid)
+
     def get_connection_point(self, target_x, target_y):
         if self.type == 'place':
             dx = target_x - self.x
@@ -235,12 +241,10 @@ class PetriNetElement:
             self.canvas.itemconfig(cid, outline='black', width=2)
 
     def show_pending(self):
-        """Оранжевый фон — переход ожидает завершения задержки."""
         for cid in self.canvas_ids:
             self.canvas.itemconfig(cid, fill='#FFB300', outline='#E65100', width=2)
 
     def clear_pending(self):
-        """Восстанавливает нормальный вид после задержки."""
         for cid in self.canvas_ids:
             self.canvas.itemconfig(cid, fill='lightgray', outline='black', width=2)
 
@@ -254,8 +258,6 @@ class Arc:
         self.arc_type = arc_type
         self.uid = f"{id(self)}"
         self.offset_index = 0
-        self.source_anchor = None
-        self.target_anchor = None
         self.line_id = None
         self.arrow_id = None
         self.text_id = None
@@ -287,18 +289,13 @@ class Arc:
             end_x += nx * offset
             end_y += ny * offset
 
-        if self.arc_type == 'inhibitor':
-            self.line_id = self.canvas.create_line(
-                start_x, start_y, end_x, end_y,
-                fill='red', width=2, arrow=tk.LAST,
-                arrowshape=(10, 12, 5), dash=(5, 3),
-                tags=("arc", f"arc:{self.uid}"))
-        else:
-            self.line_id = self.canvas.create_line(
-                start_x, start_y, end_x, end_y,
-                fill='black', width=2, arrow=tk.LAST,
-                arrowshape=(10, 12, 5),
-                tags=("arc", f"arc:{self.uid}"))
+        fill = 'red' if self.arc_type == 'inhibitor' else 'black'
+        dash = (5, 3) if self.arc_type == 'inhibitor' else None
+        kwargs = dict(fill=fill, width=2, arrow=tk.LAST, arrowshape=(10, 12, 5),
+                      tags=("arc", f"arc:{self.uid}"))
+        if dash:
+            kwargs['dash'] = dash
+        self.line_id = self.canvas.create_line(start_x, start_y, end_x, end_y, **kwargs)
 
         mid_x = (start_x + end_x) / 2
         mid_y = (start_y + end_y) / 2
@@ -310,12 +307,12 @@ class Arc:
                 tags=("arc", f"arc:{self.uid}"))
 
     def delete(self):
-        if self.line_id:
-            self.canvas.delete(self.line_id)
-        if self.arrow_id:
-            self.canvas.delete(self.arrow_id)
-        if self.text_id:
-            self.canvas.delete(self.text_id)
+        """Удаляет все canvas-объекты дуги."""
+        for attr in ('line_id', 'arrow_id', 'text_id'):
+            cid = getattr(self, attr)
+            if cid:
+                self.canvas.delete(cid)
+                setattr(self, attr, None)
 
     def set_properties(self, weight: int, arc_type: str):
         self.weight = max(1, int(weight))

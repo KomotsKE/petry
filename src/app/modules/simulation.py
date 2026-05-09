@@ -145,22 +145,41 @@ class PetriSimulation:
         run_step(0)
 
     def auto_simulation(self):
+        if getattr(self, '_auto_running', False):
+            self.stop_auto()
+            return
+        self._auto_running = True
+        self._auto_after_id = None
+        # Уведомляем UI чтобы кнопка сменила текст
+        if hasattr(self, '_on_auto_state_change'):
+            self._on_auto_state_change(True)
+
         def run_step():
+            if not self._auto_running:
+                return
             enabled = self.get_enabled_transitions()
             if not enabled:
+                self.stop_auto()
                 return
             t_name = self._pick_by_priority(enabled)
             elem = self.network.transitions[t_name]['element']
 
             if elem.delay <= 0:
                 self._fire_instant(t_name)
-                self.root.after(self.animation_speed, run_step)
+                self._auto_after_id = self.root.after(self.animation_speed, run_step)
             else:
                 self._start_delayed_fire(t_name)
-                # Следующий шаг — после завершения задержки + пауза
-                self.root.after(elem.delay + self.animation_speed, run_step)
+                self._auto_after_id = self.root.after(elem.delay + self.animation_speed, run_step)
 
         run_step()
+
+    def stop_auto(self):
+        self._auto_running = False
+        if getattr(self, '_auto_after_id', None):
+            self.root.after_cancel(self._auto_after_id)
+            self._auto_after_id = None
+        if hasattr(self, '_on_auto_state_change'):
+            self._on_auto_state_change(False)
 
     def update_speed(self, value=None):
         try:

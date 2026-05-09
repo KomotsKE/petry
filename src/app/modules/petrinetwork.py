@@ -82,6 +82,7 @@ class PetriNetwork:
         element.draw()
         self.transitions[name] = {'element': element}
         return name
+
     def create_arc(self, source_elem: PetriNetElement, target_elem: PetriNetElement,
                    weight=1, arc_type='normal') -> Arc | None:
         if source_elem.type == target_elem.type:
@@ -218,6 +219,7 @@ class PetriNetwork:
                 pass
 
     def update_delay(self, *_):
+        """Вызывается при изменении spinbox задержки."""
         if not self.selected_element or self.selected_element.type != 'transition':
             return
         try:
@@ -332,23 +334,17 @@ class PetriNetwork:
         )
         for elem in to_delete:
             name = elem.name
+            # Удаляем все дуги элемента
             for arc in list(set(elem.input_arcs) | set(elem.output_arcs)):
                 if arc in self.arcs:
                     self.delete_arc(arc)
+            # Удаляем все canvas-объекты элемента (фигура, имя, бейджи)
+            elem.delete_from_canvas()
+            # Удаляем из словарей
             if elem.type == 'place':
-                elem.redraw_tokens(0)
-            for cid in elem.canvas_ids:
-                self.canvas.delete(cid)
-            self.canvas.delete(elem.text_id)
-            if elem.label_id:
-                self.canvas.delete(elem.label_id)
-            # удаляем бейдж приоритета
-            for cid in self.canvas.find_withtag(elem._priority_badge_tag()):
-                self.canvas.delete(cid)
-            if elem.type == 'place':
-                del self.places[name]
+                self.places.pop(name, None)
             else:
-                del self.transitions[name]
+                self.transitions.pop(name, None)
             self.real_object_map.pop(name, None)
             self.initial_marking.pop(name, None)
 
