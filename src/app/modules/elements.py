@@ -24,6 +24,7 @@ class PetriNetElement:
         # Свойства перехода
         self.priority = 1           # приоритет (только для transition)
         self.label = ""             # метка-описание (только для transition)
+        self.labels_hidden = False  # глобальное скрытие меток
 
     # ── Отрисовка ──────────────────────────────────────────────────────────
 
@@ -72,7 +73,7 @@ class PetriNetElement:
             self.canvas.delete(self.label_id)
             self.label_id = None
 
-        if self.type != 'transition' or not self.label:
+        if self.type != 'transition' or not self.label or self.labels_hidden:
             return
 
         base_y = self._name_bottom_y()

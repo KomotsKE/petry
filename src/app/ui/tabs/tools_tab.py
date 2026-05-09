@@ -103,6 +103,14 @@ class ToolsTab:
             command=self._toggle_show_all_names
         ).pack(fill='x', padx=10, pady=4)
 
+        self.show_labels_var = tk.BooleanVar(value=True)
+        ttk.Checkbutton(
+            self.frame,
+            text="Показывать метки переходов",
+            variable=self.show_labels_var,
+            command=self._toggle_show_labels
+        ).pack(fill='x', padx=10, pady=4)
+
         ttk.Separator(self.frame, orient='horizontal').pack(fill='x', pady=8)
 
     # ── Переключение видимости имён ───────────────────────────────────────
@@ -117,6 +125,13 @@ class ToolsTab:
             elem = data['element']
             elem.show_name() if show else elem.hide_name()
         self.editor._rebind_all_elements()
+
+    def _toggle_show_labels(self):
+        show = self.show_labels_var.get()
+        for data in self.editor.petriNetwork.transitions.values():
+            elem = data['element']
+            elem.labels_hidden = not show
+            elem.redraw_label()
 
     # ── Переименование из панели свойств ─────────────────────────────────
 
