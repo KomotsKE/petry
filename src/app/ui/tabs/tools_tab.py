@@ -93,6 +93,17 @@ class ToolsTab:
         self.label_entry.bind('<FocusOut>', lambda e: editor.petriNetwork.update_label())
         self.label_var.trace_add('write', editor.petriNetwork.update_label)
 
+        ttk.Label(prop, text="Задержка (мс):").grid(row=5, column=0, sticky='w', pady=1)
+        self.delay_var = tk.StringVar(value='0')
+        self.delay_spinbox = ttk.Spinbox(
+            prop, from_=0, to=60000, increment=100,
+            textvariable=self.delay_var,
+            state='disabled', width=22,
+            command=editor.petriNetwork.update_delay
+        )
+        self.delay_spinbox.grid(row=5, column=1, sticky='ew', padx=(6, 0), pady=1)
+        self.delay_var.trace_add('write', editor.petriNetwork.update_delay)
+
         # ── Показ имён ────────────────────────────────────────────────────
         ttk.Separator(self.frame, orient='horizontal').pack(fill='x', pady=8)
         self.show_names_var = tk.BooleanVar(value=True)
@@ -194,3 +205,5 @@ class ToolsTab:
     def get_priority_spinbox(self):   return self.priority_spinbox
     def get_label_var(self):          return self.label_var
     def get_label_entry(self):        return self.label_entry
+    def get_delay_var(self):          return self.delay_var
+    def get_delay_spinbox(self):      return self.delay_spinbox

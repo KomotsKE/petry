@@ -34,7 +34,6 @@ class PetriNetModel:
             else:
                 raise ValueError(f"Некорректная дуга: {a}")
 
-        # флаг обрезания графа достижимости
         self._last_rg_truncated = False
 
     def _validate_marking(self, marking: Tuple[int, ...]):
@@ -45,7 +44,6 @@ class PetriNetModel:
 
     def enabled_transitions(self, marking: Tuple[int, ...]) -> Set[str]:
         self._validate_marking(marking)
-
         enabled: Set[str] = set()
         place_index = self._place_index
 
@@ -53,9 +51,7 @@ class PetriNetModel:
             ok = True
             for a in self._in_arcs[t]:
                 tokens = marking[place_index[a.source]]
-
                 if a.arc_type == "inhibitor":
-                    # поддержка веса: запрещает, если tokens >= weight
                     if tokens >= a.weight:
                         ok = False
                         break
@@ -63,11 +59,34 @@ class PetriNetModel:
                     if tokens < a.weight:
                         ok = False
                         break
-
             if ok:
                 enabled.add(t)
 
         return enabled
+
+    def consume(self, marking: Tuple[int, ...], transition: str) -> Tuple[int, ...]:
+        """Первая фаза тактированного срабатывания: снимает входные токены."""
+        self._validate_marking(marking)
+        if transition not in self.transitions:
+            raise KeyError(f"Неизвестный переход: {transition}")
+        m = list(marking)
+        for a in self._in_arcs[transition]:
+            if a.arc_type == 'normal':
+                m[self._place_index[a.source]] -= a.weight
+        if any(x < 0 for x in m):
+            raise RuntimeError("Отрицательная маркировка после consume")
+        return tuple(m)
+
+    def produce(self, marking: Tuple[int, ...], transition: str) -> Tuple[int, ...]:
+        """Вторая фаза тактированного срабатывания: добавляет выходные токены."""
+        self._validate_marking(marking)
+        if transition not in self.transitions:
+            raise KeyError(f"Неизвестный переход: {transition}")
+        m = list(marking)
+        for a in self._out_arcs[transition]:
+            if a.arc_type == 'normal':
+                m[self._place_index[a.target]] += a.weight
+        return tuple(m)
 
     def fire(self, marking: Tuple[int, ...], transition: str) -> Tuple[int, ...]:
         self._validate_marking(marking)
@@ -79,24 +98,8 @@ class PetriNetModel:
         if transition not in enabled:
             raise ValueError(f"Переход {transition} не разрешен в разметке {marking}")
 
-        m = list(marking)
-        place_index = self._place_index
-
-        for a in self._in_arcs[transition]:
-            if a.arc_type == "normal":
-                idx = place_index[a.source]
-                m[idx] -= a.weight
-
-        for a in self._out_arcs[transition]:
-            if a.arc_type == "normal":
-                idx = place_index[a.target]
-                m[idx] += a.weight
-
-        # защита от некорректных состояний
-        if any(x < 0 for x in m):
-            raise RuntimeError("Отрицательная маркировка после firing — нарушение инварианта")
-
-        return tuple(m)
+        # Атомарно: consume + produce
+        return self.produce(self.consume(marking, transition), transition)
 
     def reachability_graph(self, initial_marking: Tuple[int, ...], max_states: int = 5000):
         self._validate_marking(initial_marking)
@@ -117,7 +120,7 @@ class PetriNetModel:
             en = self.enabled_transitions(m)
             enabled_cache[m] = en
 
-            for t in en: 
+            for t in en:
                 m2 = self.fire(m, t)
                 edges.append((m, t, m2))
 
@@ -127,12 +130,7 @@ class PetriNetModel:
 
         return visited, edges, enabled_cache
 
-    def liveness_from_reachability(
-        self,
-        visited: Set[Tuple[int, ...]],
-        edges: List[Tuple[Tuple[int, ...], str, Tuple[int, ...]]],
-        enabled_cache: Dict[Tuple[int, ...], Set[str]]
-    ):
+    def liveness_from_reachability(self, visited, edges, enabled_cache):
         rev: Dict[Tuple[int, ...], List[Tuple[int, ...]]] = {m: [] for m in visited}
 
         for a, _, b in edges:

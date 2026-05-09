@@ -30,6 +30,8 @@ class PetriNetwork:
         self.priority_spinbox = None
         self.label_var = None
         self.label_entry = None
+        self.delay_var = None
+        self.delay_spinbox = None
 
     # ── Поиск ─────────────────────────────────────────────────────────────
 
@@ -68,7 +70,7 @@ class PetriNetwork:
         self.places[name] = {'element': element, 'tokens': tokens}
         return name
 
-    def create_transition(self, x, y, name=None, priority=1, label="") -> str:
+    def create_transition(self, x, y, name=None, priority=1, label="", delay=0) -> str:
         if name is None:
             name = f"T{len(self.transitions) + 1}"
         while name in self.transitions:
@@ -76,10 +78,10 @@ class PetriNetwork:
         element = PetriNetElement(self.canvas, x, y, name, 'transition')
         element.priority = max(1, int(priority))
         element.label = label or ""
+        element.delay = max(0, int(delay))
         element.draw()
         self.transitions[name] = {'element': element}
         return name
-
     def create_arc(self, source_elem: PetriNetElement, target_elem: PetriNetElement,
                    weight=1, arc_type='normal') -> Arc | None:
         if source_elem.type == target_elem.type:
@@ -215,6 +217,16 @@ class PetriNetwork:
             except ValueError:
                 pass
 
+    def update_delay(self, *_):
+        if not self.selected_element or self.selected_element.type != 'transition':
+            return
+        try:
+            d = max(0, int(self.delay_var.get()))
+            self.selected_element.delay = d
+            self.selected_element.redraw_delay()
+        except ValueError:
+            pass
+
     def update_priority(self, *_):
         """Вызывается при изменении spinbox приоритета."""
         if not self.selected_element or self.selected_element.type != 'transition':
@@ -250,6 +262,8 @@ class PetriNetwork:
         self.priority_spinbox.configure(state='disabled')
         self.label_var.set("")
         self.label_entry.configure(state='disabled')
+        self.delay_var.set("0")
+        self.delay_spinbox.configure(state='disabled')
 
     def select_element(self, elem_type, name):
         self.deselect_all()
@@ -267,6 +281,8 @@ class PetriNetwork:
             self.priority_spinbox.configure(state='disabled')
             self.label_var.set("")
             self.label_entry.configure(state='disabled')
+            self.delay_var.set("0")
+            self.delay_spinbox.configure(state='disabled')
         else:
             data = self.transitions[name]
             elem = data['element']
@@ -281,6 +297,8 @@ class PetriNetwork:
             self.priority_spinbox.configure(state='normal')
             self.label_var.set(elem.label)
             self.label_entry.configure(state='normal')
+            self.delay_var.set(str(elem.delay))
+            self.delay_spinbox.configure(state='normal')
 
     def deselect_all(self):
         self.selected_element = None
@@ -299,6 +317,8 @@ class PetriNetwork:
         self.priority_spinbox.configure(state='disabled')
         self.label_var.set('')
         self.label_entry.configure(state='disabled')
+        self.delay_var.set('0')
+        self.delay_spinbox.configure(state='disabled')
 
     def delete_selected(self, event=None):
         if self.selected_arc is not None:

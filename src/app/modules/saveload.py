@@ -25,6 +25,7 @@ class saveload:
                     'y': d['element'].y,
                     'priority': d['element'].priority,
                     'label': d['element'].label,
+                    'delay': d['element'].delay,
                 }
                 for name, d in self.network.transitions.items()
             },
@@ -54,7 +55,8 @@ class saveload:
             self.network.create_transition(
                 tdata['x'], tdata['y'], name,
                 priority=tdata.get('priority', 1),
-                label=tdata.get('label', "")
+                label=tdata.get('label', ""),
+                delay=tdata.get('delay', 0)
             )
             element_map[name] = self.network.transitions[name]['element']
 

@@ -70,4 +70,6 @@ class UIBuilder:
         net.priority_spinbox  = tab.get_priority_spinbox()
         net.label_var         = tab.get_label_var()
         net.label_entry       = tab.get_label_entry()
+        net.delay_var         = tab.get_delay_var()
+        net.delay_spinbox     = tab.get_delay_spinbox()
         self.editor.speed_var = self.editor.simulation_tab.get_speed_var()

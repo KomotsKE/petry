@@ -15,16 +15,17 @@ class PetriNetElement:
         self.token_radius = 3
         self.canvas_ids = []
         self.text_id = None
-        self.label_id = None        # ID текста метки на canvas
+        self.label_id = None
         self.token_ids = []
         self.input_arcs: list = []
         self.output_arcs: list = []
         self.name_hidden = False    # имена видны по умолчанию
 
         # Свойства перехода
-        self.priority = 1           # приоритет (только для transition)
-        self.label = ""             # метка-описание (только для transition)
+        self.priority = 1           # приоритет
+        self.label = ""             # метка-описание
         self.labels_hidden = False  # глобальное скрытие меток
+        self.delay = 0              # задержка срабатывания в мс
 
     # ── Отрисовка ──────────────────────────────────────────────────────────
 
@@ -42,14 +43,13 @@ class PetriNetElement:
                                                    fill='lightgray', outline='black', width=2)
             self.canvas_ids = [rect_id]
 
-        self._draw_name()
-        self._draw_label()
+        self._draw_name()       # вызывает _draw_label внутри
         self._draw_priority_badge()
+        self._draw_delay_badge()
         if self.type == 'place' and tokens > 0:
             self.redraw_tokens(tokens)
 
     def _name_bottom_y(self) -> float:
-        """Y-координата нижней точки подписи имени."""
         if self.type == 'place':
             return self.y + self.radius + 12
         return self.y + self.height + 12
@@ -64,11 +64,10 @@ class PetriNetElement:
                 self.x, self._name_bottom_y(),
                 text=self.name, font=('Arial', 9, 'normal'), fill='black'
             )
-        # Позиция метки зависит от видимости имени
         self._draw_label()
 
     def _draw_label(self):
-        """Метка перехода курсивом под именем. Видна всегда, когда не пустая."""
+        """Метка перехода курсивом под именем."""
         if self.label_id:
             self.canvas.delete(self.label_id)
             self.label_id = None
@@ -86,11 +85,13 @@ class PetriNetElement:
             fill='#444'
         )
 
+    # ── Бейдж приоритета ───────────────────────────────────────────────────
+
     def _priority_badge_tag(self) -> str:
         return f"pbadge:{id(self)}"
 
     def _draw_priority_badge(self):
-        """Красный кружок с цифрой в правом верхнем углу перехода, если priority > 1."""
+        """Красный кружок с цифрой в правом верхнем углу, если priority > 1."""
         tag = self._priority_badge_tag()
         for cid in self.canvas.find_withtag(tag):
             self.canvas.delete(cid)
@@ -108,13 +109,39 @@ class PetriNetElement:
                                  font=('Arial', 7, 'bold'), fill='white',
                                  tags=(tag,))
 
-    # ── Публичные методы обновления ─────────────────────────────────────────
+    # ── Значок задержки ────────────────────────────────────────────────────
+
+    def _delay_badge_tag(self) -> str:
+        return f"dbadge:{id(self)}"
+
+    def _draw_delay_badge(self):
+        tag = self._delay_badge_tag()
+        for cid in self.canvas.find_withtag(tag):
+            self.canvas.delete(cid)
+
+        if self.type != 'transition' or self.delay <= 0:
+            return
+
+        text = f"⏱{self.delay}ms" if self.delay < 1000 else f"⏱{self.delay // 1000}s"
+        self.canvas.create_text(
+            self.x, self.y + self.height + 30,
+            text=text,
+            font=('Arial', 10, 'bold'),
+            fill='#1565c0',
+            anchor='n',
+            tags=(tag,)
+        )
+
+    # ── Публичные методы обновления ────────────────────────────────────────
 
     def redraw_label(self):
         self._draw_label()
 
     def redraw_priority(self):
         self._draw_priority_badge()
+
+    def redraw_delay(self):
+        self._draw_delay_badge()
 
     def show_name(self):
         if not self.name_hidden:
@@ -171,6 +198,8 @@ class PetriNetElement:
             self.canvas.move(tid, dx, dy)
         for cid in self.canvas.find_withtag(self._priority_badge_tag()):
             self.canvas.move(cid, dx, dy)
+        for cid in self.canvas.find_withtag(self._delay_badge_tag()):
+            self.canvas.move(cid, dx, dy)
         for arc in self.input_arcs + self.output_arcs:
             arc.update_position()
 
@@ -204,6 +233,16 @@ class PetriNetElement:
     def clear_highlight(self):
         for cid in self.canvas_ids:
             self.canvas.itemconfig(cid, outline='black', width=2)
+
+    def show_pending(self):
+        """Оранжевый фон — переход ожидает завершения задержки."""
+        for cid in self.canvas_ids:
+            self.canvas.itemconfig(cid, fill='#FFB300', outline='#E65100', width=2)
+
+    def clear_pending(self):
+        """Восстанавливает нормальный вид после задержки."""
+        for cid in self.canvas_ids:
+            self.canvas.itemconfig(cid, fill='lightgray', outline='black', width=2)
 
 
 class Arc:
