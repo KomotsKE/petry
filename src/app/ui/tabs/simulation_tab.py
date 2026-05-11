@@ -20,20 +20,25 @@ class SimulationTab:
         ttk.Button(self.frame, text="Проиграть сценарий...",
                    command=editor.simulation.play_scenario).pack(fill='x', padx=10, pady=2)
 
-        ttk.Label(self.frame, text="Скорость (мс):").pack(pady=(10, 0))
-        self.speed_var = tk.StringVar(value='1000')
-        ttk.Spinbox(self.frame, from_=100, to=5000, textvariable=self.speed_var,
-                    command=lambda: editor.simulation.update_speed(self.speed_var.get())
-                    ).pack(pady=2)
-
         # Регистрируем колбэк смены состояния авто-симуляции
         editor.simulation._on_auto_state_change = self._on_auto_state_change
+        
+        # ── Файлы ────────────────────────────────────────────────────────
+        ttk.Separator(self.frame, orient='horizontal').pack(fill='x', pady=8)
+        ttk.Label(self.frame, text="Файл:", font=('Arial', 10, 'bold')).pack(pady=(0, 4))
+        file_frame = ttk.Frame(self.frame)
+        file_frame.pack(fill="x", padx=10)
+        ttk.Button(file_frame, text="Сохранить сеть",
+                   command=editor.saveload.save_to_file).pack(fill="x", pady=2)
+        ttk.Button(file_frame, text="Загрузить сеть",
+                   command=self._on_load_network).pack(fill="x", pady=2)
 
     def _on_auto_state_change(self, running: bool):
         if running:
             self.auto_btn_var.set("⏹ Остановить")
         else:
             self.auto_btn_var.set("Авто-симуляция")
-
-    def get_speed_var(self):
-        return self.speed_var
+            
+    def _on_load_network(self):
+        self.editor.saveload.load_from_file()
+        self.editor._rebind_all_elements()

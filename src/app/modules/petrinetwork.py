@@ -228,7 +228,7 @@ class PetriNetwork:
             name = self.selected_element.name
             try:
                 tokens = int(self.tokens_var.get())
-                if 0 <= tokens <= 10:
+                if tokens >= 0:
                     self.places[name]['tokens'] = tokens
                     self.places[name]['element'].redraw_tokens(tokens)
             except ValueError:

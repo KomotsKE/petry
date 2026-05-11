@@ -59,6 +59,10 @@ class PetriNetModel:
                     if tokens < a.weight:
                         ok = False
                         break
+            # Переход без входных дуг не может сработать
+            if ok and not self._in_arcs[t]:
+                ok = False
+
             if ok:
                 enabled.add(t)
 

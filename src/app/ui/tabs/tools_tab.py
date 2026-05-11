@@ -29,16 +29,6 @@ class ToolsTab:
                             command=lambda v=value: editor.handlers.set_mode(v)
                             ).pack(fill="x", pady=2)
 
-        # ── Файлы ────────────────────────────────────────────────────────
-        ttk.Separator(self.frame, orient='horizontal').pack(fill='x', pady=8)
-        ttk.Label(self.frame, text="Файл:", font=('Arial', 10, 'bold')).pack(pady=(0, 4))
-        file_frame = ttk.Frame(self.frame)
-        file_frame.pack(fill="x", padx=10)
-        ttk.Button(file_frame, text="Сохранить сеть",
-                   command=editor.saveload.save_to_file).pack(fill="x", pady=2)
-        ttk.Button(file_frame, text="Загрузить сеть",
-                   command=self._on_load_network).pack(fill="x", pady=2)
-
         # ── Свойства ─────────────────────────────────────────────────────
         ttk.Separator(self.frame, orient='horizontal').pack(fill='x', pady=8)
         ttk.Label(self.frame, text="Свойства:", font=('Arial', 10, 'bold')).pack(pady=(0, 4))
@@ -47,7 +37,7 @@ class ToolsTab:
         prop.pack(fill='x', padx=10)
         prop.grid_columnconfigure(1, weight=1)
 
-        # Имя
+        # Имя — всегда видно
         ttk.Label(prop, text="Имя:").grid(row=0, column=0, sticky='w', pady=1)
         self.element_name_var = tk.StringVar()
         self.name_entry = ttk.Entry(prop, textvariable=self.element_name_var, width=22)
@@ -55,24 +45,26 @@ class ToolsTab:
         self.name_entry.bind('<Return>', self._on_name_changed)
         self.name_entry.bind('<FocusOut>', self._on_name_changed)
 
-        # Тип
+        # Тип — всегда видно
         ttk.Label(prop, text="Тип:").grid(row=1, column=0, sticky='w', pady=1)
         self.element_type_var = tk.StringVar()
         ttk.Entry(prop, textvariable=self.element_type_var, state='readonly', width=22
                   ).grid(row=1, column=1, sticky='ew', padx=(6, 0), pady=1)
 
-        # Фишки (только для позиций)
-        ttk.Label(prop, text="Фишки:").grid(row=2, column=0, sticky='w', pady=1)
+        # Фишки — только для позиций
+        self._lbl_tokens = ttk.Label(prop, text="Фишки:")
+        self._lbl_tokens.grid(row=2, column=0, sticky='w', pady=1)
         self.tokens_var = tk.StringVar(value='0')
         self.tokens_spinbox = ttk.Spinbox(
-            prop, from_=0, to=10, textvariable=self.tokens_var,
+            prop, from_=0, to=99999, textvariable=self.tokens_var,
             state='disabled', width=22,
             command=editor.petriNetwork.update_tokens
         )
         self.tokens_spinbox.grid(row=2, column=1, sticky='ew', padx=(6, 0), pady=1)
 
-        # Приоритет (только для переходов)
-        ttk.Label(prop, text="Приоритет:").grid(row=3, column=0, sticky='w', pady=1)
+        # Приоритет — только для переходов
+        self._lbl_priority = ttk.Label(prop, text="Приоритет:")
+        self._lbl_priority.grid(row=3, column=0, sticky='w', pady=1)
         self.priority_var = tk.StringVar(value='1')
         self.priority_spinbox = ttk.Spinbox(
             prop, from_=1, to=100, textvariable=self.priority_var,
@@ -80,11 +72,11 @@ class ToolsTab:
             command=editor.petriNetwork.update_priority
         )
         self.priority_spinbox.grid(row=3, column=1, sticky='ew', padx=(6, 0), pady=1)
-        # Также реагируем на ручной ввод
         self.priority_var.trace_add('write', editor.petriNetwork.update_priority)
 
-        # Метка (только для переходов)
-        ttk.Label(prop, text="Метка:").grid(row=4, column=0, sticky='w', pady=1)
+        # Метка — только для переходов
+        self._lbl_label = ttk.Label(prop, text="Метка:")
+        self._lbl_label.grid(row=4, column=0, sticky='w', pady=1)
         self.label_var = tk.StringVar()
         self.label_entry = ttk.Entry(prop, textvariable=self.label_var,
                                      state='disabled', width=22)
@@ -93,8 +85,9 @@ class ToolsTab:
         self.label_entry.bind('<FocusOut>', lambda e: editor.petriNetwork.update_label())
         self.label_var.trace_add('write', editor.petriNetwork.update_label)
 
-        # Задержка (только для переходов)
-        ttk.Label(prop, text="Задержка (мс):").grid(row=5, column=0, sticky='w', pady=1)
+        # Задержка — только для переходов
+        self._lbl_delay = ttk.Label(prop, text="Задержка (мс):")
+        self._lbl_delay.grid(row=5, column=0, sticky='w', pady=1)
         self.delay_var = tk.StringVar(value='0')
         self.delay_spinbox = ttk.Spinbox(
             prop, from_=0, to=60000, increment=100,
@@ -104,6 +97,20 @@ class ToolsTab:
         )
         self.delay_spinbox.grid(row=5, column=1, sticky='ew', padx=(6, 0), pady=1)
         self.delay_var.trace_add('write', editor.petriNetwork.update_delay)
+
+        # Автоматически обновляем видимость строк при смене типа
+        self.element_type_var.trace_add('write', self._on_type_changed)
+
+        # Скрываем все опциональные строки до выделения элемента
+        self._rows_place = [
+            (self._lbl_tokens, self.tokens_spinbox),
+        ]
+        self._rows_transition = [
+            (self._lbl_priority, self.priority_spinbox),
+            (self._lbl_label,    self.label_entry),
+            (self._lbl_delay,    self.delay_spinbox),
+        ]
+        self.show_properties_for(None)
 
         # ── Показ имён ────────────────────────────────────────────────────
         ttk.Separator(self.frame, orient='horizontal').pack(fill='x', pady=8)
@@ -124,6 +131,33 @@ class ToolsTab:
         ).pack(fill='x', padx=10, pady=4)
 
         ttk.Separator(self.frame, orient='horizontal').pack(fill='x', pady=8)
+
+    # ── Показ/скрытие строк свойств ───────────────────────────────────────
+
+    def _on_type_changed(self, *_):
+        t = self.element_type_var.get()
+        if t == 'Позиция':
+            self.show_properties_for('place')
+        elif t == 'Переход':
+            self.show_properties_for('transition')
+        else:
+            self.show_properties_for(None)
+
+    def show_properties_for(self, elem_type: str | None):
+        """Показывает только строки свойств, относящиеся к elem_type."""
+        for lbl, widget in self._rows_place + self._rows_transition:
+            lbl.grid_remove()
+            widget.grid_remove()
+
+        if elem_type == 'place':
+            for lbl, widget in self._rows_place:
+                lbl.grid()
+                widget.grid()
+
+        elif elem_type == 'transition':
+            for lbl, widget in self._rows_transition:
+                lbl.grid()
+                widget.grid()
 
     # ── Переключение видимости имён ───────────────────────────────────────
 
@@ -189,12 +223,6 @@ class ToolsTab:
 
         self.editor._bind_element(elem_type, new_name)
         net.select_element(elem_type, new_name)
-
-    # ── Загрузка сети ─────────────────────────────────────────────────────
-
-    def _on_load_network(self):
-        self.editor.saveload.load_from_file()
-        self.editor._rebind_all_elements()
 
     # ── Аксессоры ─────────────────────────────────────────────────────────
 

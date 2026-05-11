@@ -2,7 +2,6 @@ import tkinter as tk
 from tkinter import ttk
 from app.ui.tabs.tools_tab import ToolsTab
 from app.ui.tabs.simulation_tab import SimulationTab
-from app.ui.tabs.marking_tab import MarkingTab
 from app.ui.tabs.analysis_tab import AnalysisTab
 
 
@@ -56,7 +55,6 @@ class UIBuilder:
     def _create_tabs(self):
         self.editor.tools_tab = ToolsTab(self.editor.notebook, self.editor)
         self.editor.simulation_tab = SimulationTab(self.editor.notebook, self.editor)
-        self.editor.marking_tab = MarkingTab(self.editor.notebook, self.editor)
         self.editor.analysis_tab = AnalysisTab(self.editor.notebook, self.editor)
 
     def _link_ui_variables(self):
@@ -72,4 +70,3 @@ class UIBuilder:
         net.label_entry       = tab.get_label_entry()
         net.delay_var         = tab.get_delay_var()
         net.delay_spinbox     = tab.get_delay_spinbox()
-        self.editor.speed_var = self.editor.simulation_tab.get_speed_var()
