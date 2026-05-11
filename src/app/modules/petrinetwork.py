@@ -91,6 +91,15 @@ class PetriNetwork:
             if arc.source == source_elem and arc.target == target_elem:
                 return None
         arc = Arc(self.canvas, source_elem, target_elem, weight, arc_type)
+
+        # Если есть встречная дуга — разводим обе визуально
+        counter = next((a for a in self.arcs
+                        if a.source == target_elem and a.target == source_elem), None)
+        if counter:
+            counter.offset_index = 1
+            arc.offset_index = 1
+            counter.update_position()
+
         arc.draw()
         self.arcs.append(arc)
         source_elem.output_arcs.append(arc)
@@ -105,6 +114,13 @@ class PetriNetwork:
             arc.source.output_arcs.remove(arc)
         if arc in arc.target.input_arcs:
             arc.target.input_arcs.remove(arc)
+
+        # Если была встречная дуга — сбрасываем её смещение
+        counter = next((a for a in self.arcs
+                        if a.source == arc.target and a.target == arc.source), None)
+        if counter:
+            counter.offset_index = 0
+            counter.update_position()
 
     def edit_arc_properties(self, arc: Arc):
         weight = simpledialog.askinteger(

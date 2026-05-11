@@ -26,6 +26,7 @@ class saveload:
                     'priority': d['element'].priority,
                     'label': d['element'].label,
                     'delay': d['element'].delay,
+                    'rotated': d['element'].rotated,
                 }
                 for name, d in self.network.transitions.items()
             },
@@ -58,6 +59,8 @@ class saveload:
                 label=tdata.get('label', ""),
                 delay=tdata.get('delay', 0)
             )
+            if tdata.get('rotated', False):
+                self.network.transitions[name]['element'].rotate()
             element_map[name] = self.network.transitions[name]['element']
 
         for arc_data in data['arcs']:

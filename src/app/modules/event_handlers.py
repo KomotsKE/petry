@@ -19,15 +19,14 @@ class EditorEventHandlers:
         self._arc_drag = None
         self.mode = 'select'
 
-    # ============ Очистка arc_source ============
+    # ── Очистка arc_source ────────────────────────────────────────────────
 
     def _clear_arc_source(self):
-        """arc_source — наша ответственность, не PetriNetwork."""
         if self.arc_source:
             self.arc_source.clear_highlight()
             self.arc_source = None
 
-    # ============ Клики и перетаскивание ============
+    # ── Клики и перетаскивание ────────────────────────────────────────────
 
     def on_canvas_click(self, event):
         x, y = self.canvas.canvasx(event.x), self.canvas.canvasy(event.y)
@@ -138,7 +137,7 @@ class EditorEventHandlers:
                 self.network.select_element(elem_type, name)
                 self.drag_data = {'x': x, 'y': y, 'element': self.network.selected_element}
 
-    # ============ Контекстные меню ============
+    # ── Контекстные меню ──────────────────────────────────────────────────
 
     def prompt_tokens(self, place_name: str):
         val = simpledialog.askinteger(
@@ -154,8 +153,6 @@ class EditorEventHandlers:
 
     def show_place_menu(self, event, name: str):
         menu = tk.Menu(self.root, tearoff=0)
-        # Важно: откладываем вызов диалога через after(), чтобы grab меню
-        # успел освободиться до того, как simpledialog попытается захватить фокус.
         menu.add_command(
             label="Переименовать...",
             command=lambda: self.root.after(0, lambda: self._prompt_rename('place', name))
@@ -170,10 +167,13 @@ class EditorEventHandlers:
 
     def show_transition_menu(self, event, name: str):
         menu = tk.Menu(self.root, tearoff=0)
-        # Исправлено: было self.network._prompt_rename (метода нет в PetriNetwork)
         menu.add_command(
             label="Переименовать...",
             command=lambda: self.root.after(0, lambda: self._prompt_rename('transition', name))
+        )
+        menu.add_command(
+            label="Повернуть на 90°",
+            command=lambda: self.network.transitions[name]['element'].rotate()
         )
         menu.add_separator()
         menu.add_command(label="Удалить", command=self.network.delete_selected)
@@ -221,7 +221,6 @@ class EditorEventHandlers:
             self.show_transition_menu(event, name)
 
     def _prompt_rename(self, elem_type: str, old_name: str):
-        """Запрашивает новое имя через диалог и вызывает rename_element"""
         new_name = simpledialog.askstring(
             "Переименование", f"Новое имя для '{old_name}':",
             initialvalue=old_name, parent=self.root

@@ -26,6 +26,7 @@ class PetriNetElement:
         self.label = ""
         self.labels_hidden = False
         self.delay = 0
+        self.rotated = False       # горизонтальная ориентация перехода
 
     # ── Теги для canvas-объектов ───────────────────────────────────────────
 
@@ -135,6 +136,24 @@ class PetriNetElement:
     def redraw_delay(self):
         self._draw_delay_badge()
 
+    def rotate(self):
+        """Поворачивает переход на 90°, меняя width и height местами."""
+        if self.type != 'transition':
+            return
+        self.width, self.height = self.height, self.width
+        self.rotated = not self.rotated
+        # Обновляем прямоугольник без пересоздания
+        x1, y1 = self.x - self.width, self.y - self.height
+        x2, y2 = self.x + self.width, self.y + self.height
+        self.canvas.coords(self.canvas_ids[0], x1, y1, x2, y2)
+        # Перерисовываем бейджи и подписи
+        self._draw_priority_badge()
+        self._draw_delay_badge()
+        self._draw_name()
+        # Обновляем все дуги
+        for arc in self.input_arcs + self.output_arcs:
+            arc.update_position()
+
     def show_name(self):
         if not self.name_hidden:
             return
@@ -216,7 +235,8 @@ class PetriNetElement:
             dist = math.hypot(dx, dy)
             if dist == 0:
                 return self.x + self.radius, self.y
-            return self.x + dx / dist * self.radius, self.y + dy / dist * self.radius
+            r = self.radius + 1  # внешний край обводки (border=2px)
+            return round(self.x + dx / dist * r), round(self.y + dy / dist * r)
         else:
             dx = target_x - self.x
             dy = target_y - self.y
@@ -225,12 +245,17 @@ class PetriNetElement:
             t_x = self.width / abs(dx) if dx != 0 else float('inf')
             t_y = self.height / abs(dy) if dy != 0 else float('inf')
             if t_x < t_y:
-                x = self.x + (self.width if dx > 0 else -self.width)
-                y = self.y + dy * t_x
+                bx = self.x + (self.width if dx > 0 else -self.width)
+                by = self.y + dy * t_x
             else:
-                y = self.y + (self.height if dy > 0 else -self.height)
-                x = self.x + dx * t_y
-            return x, y
+                by = self.y + (self.height if dy > 0 else -self.height)
+                bx = self.x + dx * t_y
+            # Сдвигаем точку на 1px наружу от центра — равномерно по любому углу
+            d = math.hypot(bx - self.x, by - self.y)
+            if d > 0:
+                bx += (bx - self.x) / d
+                by += (by - self.y) / d
+            return round(bx), round(by)
 
     def highlight(self, color='red', width=3):
         for cid in self.canvas_ids:
@@ -274,8 +299,14 @@ class Arc:
         if self.text_id:
             self.canvas.delete(self.text_id)
 
+        # Начальное приближение: направление центр→центр
         start_x, start_y = self.source.get_connection_point(self.target.x, self.target.y)
         end_x, end_y = self.target.get_connection_point(self.source.x, self.source.y)
+
+        # Уточняем точки через реальное направление дуги (2 итерации)
+        for _ in range(2):
+            start_x, start_y = self.source.get_connection_point(end_x, end_y)
+            end_x, end_y = self.target.get_connection_point(start_x, start_y)
 
         dx = end_x - start_x
         dy = end_y - start_y
