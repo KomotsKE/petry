@@ -122,6 +122,21 @@ class PetriNetwork:
             counter.offset_index = 0
             counter.update_position()
 
+    def _ask_arc_type(self, initial: str) -> str | None:
+        class ArcTypeDialog(simpledialog.Dialog):
+            def body(self, master):
+                ttk.Label(master, text="Тип дуги:").grid(row=0, column=0, sticky='w', pady=(0, 6))
+                self.var = tk.StringVar(value=initial if initial in ("normal", "inhibitor") else "normal")
+                ttk.Radiobutton(master, text="Normal (обычная дуга)", value="normal", variable=self.var).grid(row=1, column=0, sticky='w')
+                ttk.Radiobutton(master, text="Inhibitor (ингибиторная дуга)", value="inhibitor", variable=self.var).grid(row=2, column=0, sticky='w')
+                return None
+
+            def apply(self):
+                self.result = self.var.get()
+
+        dialog = ArcTypeDialog(self.root, title="Тип дуги")
+        return dialog.result
+
     def edit_arc_properties(self, arc: Arc):
         weight = simpledialog.askinteger(
             "Вес дуги", "Введите вес дуги (>=1):",
@@ -130,11 +145,7 @@ class PetriNetwork:
         )
         if weight is None:
             return
-        arc_type = simpledialog.askstring(
-            "Тип дуги", "Введите тип: normal или inhibitor",
-            initialvalue=arc.arc_type,
-            parent=self.root
-        )
+        arc_type = self._ask_arc_type(arc.arc_type)
         if not arc_type:
             return
         arc.set_properties(weight=weight, arc_type=arc_type.strip())

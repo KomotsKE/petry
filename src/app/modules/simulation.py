@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 
+from app.modules.petri import _omega_add, _omega_sub
 from app.modules.petrinetwork import PetriNetwork
 
 
@@ -22,7 +23,9 @@ class PetriSimulation:
 
     def get_enabled_transitions(self) -> set:
         model = self.network.build_model()
-        return model.enabled_transitions(self.network.get_marking())
+        enabled = model.enabled_transitions(self.network.get_marking())
+        # Переходы, находящиеся в фазе ожидания delayed fire, недоступны.
+        return enabled - set(self._pending.keys())
 
     def _pick_by_priority(self, enabled: set) -> str:
         """Максимальный приоритет; при равенстве — диалог выбора."""
@@ -63,8 +66,17 @@ class PetriSimulation:
         планируем фазу 2 через delay мс.
         """
         model = self.network.build_model()
-        intermediate = model.consume(self.network.get_marking(), t_name)
-        self.network.set_marking(intermediate)
+        marking = self.network.get_marking()
+        intermediate = list(marking)
+        place_index = model._place_index
+
+        for arc in model._in_arcs[t_name]:
+            if arc.arc_type == 'normal':
+                intermediate[place_index[arc.source]] = _omega_sub(
+                    intermediate[place_index[arc.source]], arc.weight
+                )
+
+        self.network.set_marking(tuple(intermediate))
 
         elem = self.network.transitions[t_name]['element']
         elem.show_pending()
@@ -81,8 +93,17 @@ class PetriSimulation:
         self._pending.pop(t_name, None)
 
         model = self.network.build_model()
-        final = model.produce(self.network.get_marking(), t_name)
-        self.network.set_marking(final)
+        marking = self.network.get_marking()
+        final = list(marking)
+        place_index = model._place_index
+
+        for arc in model._out_arcs[t_name]:
+            if arc.arc_type == 'normal':
+                final[place_index[arc.target]] = _omega_add(
+                    final[place_index[arc.target]], arc.weight
+                )
+
+        self.network.set_marking(tuple(final))
 
         elem = self.network.transitions[t_name]['element']
         elem.clear_pending()
@@ -159,6 +180,10 @@ class PetriSimulation:
                 return
             enabled = self.get_enabled_transitions()
             if not enabled:
+                if self._pending:
+                    # Есть отложенные переходы — продолжаем ждать их завершения.
+                    self._auto_after_id = self.root.after(self.animation_speed, run_step)
+                    return
                 self.stop_auto()
                 return
             t_name = self._pick_by_priority(enabled)
@@ -169,7 +194,7 @@ class PetriSimulation:
                 self._auto_after_id = self.root.after(self.animation_speed, run_step)
             else:
                 self._start_delayed_fire(t_name)
-                self._auto_after_id = self.root.after(elem.delay + self.animation_speed, run_step)
+                self._auto_after_id = self.root.after(self.animation_speed, run_step)
 
         run_step()
 
