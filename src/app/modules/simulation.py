@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox, simpledialog
+from tkinter import ttk
 
 from app.modules.petri import _omega_add, _omega_sub
 from app.modules.petrinetwork import PetriNetwork
@@ -27,20 +28,71 @@ class PetriSimulation:
         # Переходы, находящиеся в фазе ожидания delayed fire, недоступны.
         return enabled - set(self._pending.keys())
 
-    def _pick_by_priority(self, enabled: set) -> str:
+    def _ask_transition_choice(self, options: list[str], title: str, message: str) -> str | None:
+        dialog = tk.Toplevel(self.root)
+        dialog.title(title)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.geometry("320x260")
+        dialog.resizable(False, False)
+
+        ttk.Label(dialog, text=message, wraplength=300, justify="left").pack(padx=10, pady=(10, 5), anchor="w")
+
+        selection = tk.StringVar(value=options[0])
+        listbox = tk.Listbox(dialog, listvariable=tk.StringVar(value=options), height=min(6, len(options)), exportselection=False)
+        listbox.pack(fill="both", expand=True, padx=10, pady=5)
+        listbox.select_set(0)
+
+        def select_item(event=None):
+            idx = listbox.curselection()
+            if idx:
+                selection.set(options[idx[0]])
+
+        listbox.bind("<<ListboxSelect>>", select_item)
+
+        btn_frame = ttk.Frame(dialog)
+        btn_frame.pack(fill="x", padx=10, pady=(0, 10))
+
+        result = {'choice': None}
+
+        def on_ok():
+            idx = listbox.curselection()
+            if idx:
+                result['choice'] = options[idx[0]]
+            dialog.destroy()
+
+        def on_cancel():
+            dialog.destroy()
+
+        ttk.Button(btn_frame, text="OK", command=on_ok).pack(side="left", expand=True, fill="x", padx=2)
+        ttk.Button(btn_frame, text="Отмена", command=on_cancel).pack(side="left", expand=True, fill="x", padx=2)
+
+        dialog.update_idletasks()
+        root_x = self.root.winfo_rootx()
+        root_y = self.root.winfo_rooty()
+        root_w = self.root.winfo_width()
+        root_h = self.root.winfo_height()
+        dlg_w = dialog.winfo_width()
+        dlg_h = dialog.winfo_height()
+        x = root_x + max(0, (root_w - dlg_w) // 2)
+        y = root_y + max(0, (root_h - dlg_h) // 2)
+        dialog.geometry(f"+{x}+{y}")
+
+        dialog.wait_window()
+        return result['choice']
+
+    def _pick_by_priority(self, enabled: set) -> str | None:
         """Максимальный приоритет; при равенстве — диалог выбора."""
         candidates = [(self.network.transitions[t]['element'].priority, t) for t in enabled]
         max_p = max(p for p, _ in candidates)
         top = sorted(name for p, name in candidates if p == max_p)
         if len(top) == 1:
             return top[0]
-        choice = simpledialog.askstring(
+        return self._ask_transition_choice(
+            top,
             "Выбор перехода",
-            f"Активные переходы (приоритет {max_p}):\n{', '.join(top)}"
-            "\n\nВведите имя перехода:",
-            parent=self.root
+            f"Активные переходы (приоритет {max_p}):"
         )
-        return choice if (choice and choice in top) else top[0]
 
     # ── Срабатывание ──────────────────────────────────────────────────────
 
@@ -119,6 +171,9 @@ class PetriSimulation:
             return False
 
         t_name = self._pick_by_priority(enabled)
+        if t_name is None:
+            return False
+
         elem = self.network.transitions[t_name]['element']
 
         if elem.delay <= 0:
@@ -187,6 +242,10 @@ class PetriSimulation:
                 self.stop_auto()
                 return
             t_name = self._pick_by_priority(enabled)
+            if t_name is None:
+                self.stop_auto()
+                return
+
             elem = self.network.transitions[t_name]['element']
 
             if elem.delay <= 0:
