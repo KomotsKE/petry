@@ -123,19 +123,42 @@ class PetriNetwork:
             counter.update_position()
 
     def _ask_arc_type(self, initial: str) -> str | None:
-        class ArcTypeDialog(simpledialog.Dialog):
-            def body(self, master):
-                ttk.Label(master, text="Тип дуги:").grid(row=0, column=0, sticky='w', pady=(0, 6))
-                self.var = tk.StringVar(value=initial if initial in ("normal", "inhibitor") else "normal")
-                ttk.Radiobutton(master, text="Normal (обычная дуга)", value="normal", variable=self.var).grid(row=1, column=0, sticky='w')
-                ttk.Radiobutton(master, text="Inhibitor (ингибиторная дуга)", value="inhibitor", variable=self.var).grid(row=2, column=0, sticky='w')
-                return None
-
-            def apply(self):
-                self.result = self.var.get()
-
-        dialog = ArcTypeDialog(self.root, title="Тип дуги")
-        return dialog.result
+        """Показывает диалог выбора типа дуги с радиокнопками."""
+        import tkinter as tk
+        from tkinter import ttk
+        
+        dialog_root = tk.Toplevel(self.root)
+        dialog_root.title("Тип дуги")
+        dialog_root.geometry("300x150")
+        dialog_root.resizable(False, False)
+        dialog_root.grab_set()
+        
+        var = tk.StringVar(value=initial if initial in ("normal", "inhibitor") else "normal")
+        result = [None]
+        
+        frame = ttk.Frame(dialog_root, padding=10)
+        frame.pack(fill="both", expand=True)
+        
+        ttk.Label(frame, text="Выберите тип дуги:", font=("Arial", 10)).pack(anchor="w", pady=(0, 10))
+        ttk.Radiobutton(frame, text="Normal (обычная дуга)", value="normal", variable=var).pack(anchor="w", pady=5)
+        ttk.Radiobutton(frame, text="Inhibitor (ингибиторная дуга)", value="inhibitor", variable=var).pack(anchor="w", pady=5)
+        
+        button_frame = ttk.Frame(frame)
+        button_frame.pack(fill="x", pady=(20, 0))
+        
+        def ok_clicked():
+            result[0] = var.get()
+            dialog_root.destroy()
+        
+        def cancel_clicked():
+            result[0] = None
+            dialog_root.destroy()
+        
+        ttk.Button(button_frame, text="OK", command=ok_clicked, width=10).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Отмена", command=cancel_clicked, width=10).pack(side="left", padx=5)
+        
+        self.root.wait_window(dialog_root)
+        return result[0]
 
     def edit_arc_properties(self, arc: Arc):
         weight = simpledialog.askinteger(

@@ -54,6 +54,11 @@ class analysis:
         extra = ""
         if is_unbounded:
             extra = "\n⚠ Сеть НЕОГРАНИЧЕНА — результат по графу покрываемости"
+        
+        # Проверяем наличие ингибиторных дуг
+        has_inhibitor = any(a.arc_type == 'inhibitor' for a in self.network.arcs)
+        if has_inhibitor:
+            extra += "\n📍 В сети есть ингибиторные дуги (красные) — они блокируют переход при наличии достаточного количества токенов"
 
         messagebox.showinfo(
             "Живость",
