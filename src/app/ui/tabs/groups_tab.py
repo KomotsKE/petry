@@ -295,8 +295,7 @@ class GroupsTab:
 
         dialog = tk.Toplevel(self.frame)
         dialog.title(title)
-        dialog.geometry("320x420")
-        dialog.resizable(False, True)
+        dialog.resizable(False, False)
         dialog.grab_set()
         dialog.transient(self.frame)
 
@@ -306,44 +305,50 @@ class GroupsTab:
         main_frame = ttk.Frame(dialog, padding=8)
         main_frame.pack(fill="both", expand=True)
 
-        ttk.Label(main_frame, text="Позиции:", font=("Arial", 9, "bold")).pack(anchor="w")
+        # Создаём скроллируемую область для чекбоксов
+        canvas = tk.Canvas(main_frame, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        def _on_mousewheel(event):
+            canvas.yview_scroll(-1 * (event.delta // 120), "units")
+
+        canvas.bind("<MouseWheel>", _on_mousewheel)
+
+        ttk.Label(scrollable_frame, text="Позиции:", font=("Arial", 9, "bold")).pack(anchor="w")
         place_vars = {}
         if all_places:
-            pf = ttk.Frame(main_frame)
+            pf = ttk.Frame(scrollable_frame)
             pf.pack(fill="x", pady=(0, 6))
             for name in all_places:
                 var = tk.BooleanVar(value=(name in preselected))
                 place_vars[name] = var
                 ttk.Checkbutton(pf, text=name, variable=var).pack(anchor="w")
         else:
-            ttk.Label(main_frame, text="  (нет позиций)", foreground="#888").pack(anchor="w")
+            ttk.Label(scrollable_frame, text="  (нет позиций)", foreground="#888").pack(anchor="w")
 
-        ttk.Label(main_frame, text="Переходы:", font=("Arial", 9, "bold")).pack(anchor="w")
+        ttk.Label(scrollable_frame, text="Переходы:", font=("Arial", 9, "bold")).pack(anchor="w")
         trans_vars = {}
         if all_transitions:
-            tf = ttk.Frame(main_frame)
+            tf = ttk.Frame(scrollable_frame)
             tf.pack(fill="x", pady=(0, 6))
             for name in all_transitions:
                 var = tk.BooleanVar(value=(name in preselected))
                 trans_vars[name] = var
                 ttk.Checkbutton(tf, text=name, variable=var).pack(anchor="w")
         else:
-            ttk.Label(main_frame, text="  (нет переходов)", foreground="#888").pack(anchor="w")
+            ttk.Label(scrollable_frame, text="  (нет переходов)", foreground="#888").pack(anchor="w")
 
-        # Быстрый выбор всех / сброс
-        quick_frame = ttk.Frame(main_frame)
-        quick_frame.pack(fill="x", pady=4)
-
-        def _select_all():
-            for v in list(place_vars.values()) + list(trans_vars.values()):
-                v.set(True)
-
-        def _clear_all():
-            for v in list(place_vars.values()) + list(trans_vars.values()):
-                v.set(False)
-
-        ttk.Button(quick_frame, text="Выбрать все", command=_select_all).pack(side="left", padx=2)
-        ttk.Button(quick_frame, text="Снять все", command=_clear_all).pack(side="left", padx=2)
+        # Настраиваем ширину scrollable_frame и scrollregion
+        dialog.update_idletasks()
+        canvas.configure(scrollregion=canvas.bbox("all"))
+        scrollable_frame.config(width=canvas.winfo_width())
 
         # ── Кнопки OK/Отмена ─────────────────────────────────────────────
         ttk.Separator(dialog, orient="horizontal").pack(fill="x")
@@ -364,6 +369,16 @@ class GroupsTab:
 
         ttk.Button(btn_frame, text="OK", command=_ok, width=10).pack(side="left", padx=4)
         ttk.Button(btn_frame, text="Отмена", command=_cancel, width=10).pack(side="left")
+
+        # Устанавливаем размер по контенту и центрируем
+        dialog.update_idletasks()
+        width = dialog.winfo_reqwidth()
+        height = min(dialog.winfo_reqheight(), 600)  # Ограничиваем максимальную высоту
+        screen_width = dialog.winfo_screenwidth()
+        screen_height = dialog.winfo_screenheight()
+        x = (screen_width - width) // 2
+        y = (screen_height - height) // 2
+        dialog.geometry(f"{width}x{height}+{x}+{y}")
 
         dialog.protocol("WM_DELETE_WINDOW", _cancel)
         dialog.wait_window()
