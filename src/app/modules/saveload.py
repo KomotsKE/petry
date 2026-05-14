@@ -35,6 +35,7 @@ class saveload:
                  'weight': a.weight, 'type': a.arc_type}
                 for a in self.network.arcs
             ],
+            'groups': self.network.groups,
             'real_objects': self.real_object_map,
             'initial_marking': self.initial_marking,
         }
@@ -70,6 +71,9 @@ class saveload:
                 self.network.create_arc(source, target,
                                         arc_data.get('weight', 1),
                                         arc_data.get('type', 'normal'))
+
+        # Загрузить группы
+        self.network.groups = data.get('groups', [])
 
     def save_to_file(self):
         filename = filedialog.asksaveasfilename(

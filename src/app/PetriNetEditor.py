@@ -18,7 +18,7 @@ class PetriNetEditor:
         self.ui_builder = UIBuilder(self)
 
         # 2. Передаём canvas и root напрямую, без self
-        self.petriNetwork = PetriNetwork(self.canvas, self.root)
+        self.petriNetwork = PetriNetwork(self.canvas, self.root, self)
         self.simulation = PetriSimulation(self.petriNetwork, self.root)
         self.handlers = EditorEventHandlers(self, self.canvas, self.petriNetwork, self.root)
         self.analysis = analysis(self.petriNetwork, self.root)

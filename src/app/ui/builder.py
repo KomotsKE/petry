@@ -3,6 +3,7 @@ from tkinter import ttk
 from app.ui.tabs.tools_tab import ToolsTab
 from app.ui.tabs.simulation_tab import SimulationTab
 from app.ui.tabs.analysis_tab import AnalysisTab
+from app.ui.tabs.groups_tab import GroupsTab
 
 
 class UIBuilder:
@@ -56,6 +57,7 @@ class UIBuilder:
         self.editor.tools_tab = ToolsTab(self.editor.notebook, self.editor)
         self.editor.simulation_tab = SimulationTab(self.editor.notebook, self.editor)
         self.editor.analysis_tab = AnalysisTab(self.editor.notebook, self.editor)
+        self.editor.groups_tab = GroupsTab(self.editor.notebook, self.editor)
 
     def _link_ui_variables(self):
         net = self.editor.petriNetwork

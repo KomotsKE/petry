@@ -9,9 +9,10 @@ from app.modules.petri import ModelArc, PetriNetModel
 
 
 class PetriNetwork:
-    def __init__(self, canvas: tk.Canvas, root: tk.Tk):
+    def __init__(self, canvas: tk.Canvas, root: tk.Tk, editor=None):
         self.canvas = canvas
         self.root = root
+        self.editor = editor
         self.places = {}       # name -> {'element': PetriNetElement, 'tokens': int}
         self.transitions = {}  # name -> {'element': PetriNetElement}
         self.arcs: List[Arc] = []
@@ -20,6 +21,9 @@ class PetriNetwork:
         self.selected_element = None
         self.selected_elements = set()
         self.selected_arc = None
+
+        # Группы элементов
+        self.groups = []  # List[dict]: {'name': str, 'elements': set[str]}
 
         # UI-переменные — заполняются из UIBuilder.post_build()
         self.element_name_var = None
@@ -53,6 +57,14 @@ class PetriNetwork:
             data['element'].clear_highlight()
         for data in self.transitions.values():
             data['element'].clear_highlight()
+
+    def highlight_group(self, group_elements: set[str], color='orange'):
+        self.clear_highlight()
+        for name in group_elements:
+            if name in self.places:
+                self.places[name]['element'].highlight(color)
+            elif name in self.transitions:
+                self.transitions[name]['element'].highlight(color)
 
     def highlight_element(self, elem: PetriNetElement, color='red'):
         self.clear_highlight()
@@ -397,5 +409,31 @@ class PetriNetwork:
                 self.transitions.pop(name, None)
             self.real_object_map.pop(name, None)
             self.initial_marking.pop(name, None)
+            # Удаляем из групп
+            for g in self.groups:
+                g['elements'].discard(name)
 
         self.deselect_all()
+        # Обновить UI групп, если есть
+        if self.editor and hasattr(self.editor, 'groups_tab'):
+            self.editor.groups_tab._refresh_groups()
+   
+    def add_group(self, name: str, elements: set[str]):
+        if not name:
+            return False
+        if any(g['name'] == name for g in self.groups):
+            messagebox.showerror("Ошибка", f"Группа '{name}' уже существует!")
+            return False
+        # Проверить, что все элементы существуют
+        all_elements = set(self.places.keys()) | set(self.transitions.keys())
+        if not elements.issubset(all_elements):
+            messagebox.showerror("Ошибка", "Некоторые элементы не найдены в сети!")
+            return False
+        self.groups.append({'name': name, 'elements': elements})
+        return True
+
+    def remove_group(self, name: str):
+        self.groups = [g for g in self.groups if g['name'] != name]
+
+    def get_groups(self):
+        return self.groups.copy()
