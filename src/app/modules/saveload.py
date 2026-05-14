@@ -35,7 +35,11 @@ class saveload:
                  'weight': a.weight, 'type': a.arc_type}
                 for a in self.network.arcs
             ],
-            'groups': self.network.groups,
+            # Сериализуем set → list (JSON не поддерживает set)
+            'groups': [
+                {'name': g['name'], 'elements': sorted(g['elements'])}
+                for g in self.network.groups
+            ],
             'real_objects': self.real_object_map,
             'initial_marking': self.initial_marking,
         }
@@ -45,6 +49,7 @@ class saveload:
         self.network.places.clear()
         self.network.transitions.clear()
         self.network.arcs.clear()
+        self.network.groups.clear()
         self.real_object_map = data.get('real_objects', {})
         self.initial_marking = data.get('initial_marking', {})
 
@@ -72,8 +77,15 @@ class saveload:
                                         arc_data.get('weight', 1),
                                         arc_data.get('type', 'normal'))
 
-        # Загрузить группы
-        self.network.groups = data.get('groups', [])
+        # Загружаем группы: list → set для elements
+        for g in data.get('groups', []):
+            self.network.groups.append({
+                'name': g['name'],
+                'elements': set(g.get('elements', []))
+            })
+
+        # Обновляем UI групп
+        self.network._notify_groups_changed()
 
     def save_to_file(self):
         filename = filedialog.asksaveasfilename(

@@ -37,7 +37,7 @@ class ToolsTab:
         prop.pack(fill='x', padx=10)
         prop.grid_columnconfigure(1, weight=1)
 
-        # Имя — всегда видно
+        # Имя
         ttk.Label(prop, text="Имя:").grid(row=0, column=0, sticky='w', pady=1)
         self.element_name_var = tk.StringVar()
         self.name_entry = ttk.Entry(prop, textvariable=self.element_name_var, width=22)
@@ -45,13 +45,13 @@ class ToolsTab:
         self.name_entry.bind('<Return>', self._on_name_changed)
         self.name_entry.bind('<FocusOut>', self._on_name_changed)
 
-        # Тип — всегда видно
+        # Тип
         ttk.Label(prop, text="Тип:").grid(row=1, column=0, sticky='w', pady=1)
         self.element_type_var = tk.StringVar()
         ttk.Entry(prop, textvariable=self.element_type_var, state='readonly', width=22
                   ).grid(row=1, column=1, sticky='ew', padx=(6, 0), pady=1)
 
-        # Фишки — только для позиций
+        # Фишки
         self._lbl_tokens = ttk.Label(prop, text="Фишки:")
         self._lbl_tokens.grid(row=2, column=0, sticky='w', pady=1)
         self.tokens_var = tk.StringVar(value='0')
@@ -62,7 +62,7 @@ class ToolsTab:
         )
         self.tokens_spinbox.grid(row=2, column=1, sticky='ew', padx=(6, 0), pady=1)
 
-        # Приоритет — только для переходов
+        # Приоритет
         self._lbl_priority = ttk.Label(prop, text="Приоритет:")
         self._lbl_priority.grid(row=3, column=0, sticky='w', pady=1)
         self.priority_var = tk.StringVar(value='1')
@@ -74,7 +74,7 @@ class ToolsTab:
         self.priority_spinbox.grid(row=3, column=1, sticky='ew', padx=(6, 0), pady=1)
         self.priority_var.trace_add('write', editor.petriNetwork.update_priority)
 
-        # Метка — только для переходов
+        # Метка
         self._lbl_label = ttk.Label(prop, text="Метка:")
         self._lbl_label.grid(row=4, column=0, sticky='w', pady=1)
         self.label_var = tk.StringVar()
@@ -85,7 +85,7 @@ class ToolsTab:
         self.label_entry.bind('<FocusOut>', lambda e: editor.petriNetwork.update_label())
         self.label_var.trace_add('write', editor.petriNetwork.update_label)
 
-        # Задержка — только для переходов
+        # Задержка
         self._lbl_delay = ttk.Label(prop, text="Задержка (мс):")
         self._lbl_delay.grid(row=5, column=0, sticky='w', pady=1)
         self.delay_var = tk.StringVar(value='0')
@@ -98,10 +98,8 @@ class ToolsTab:
         self.delay_spinbox.grid(row=5, column=1, sticky='ew', padx=(6, 0), pady=1)
         self.delay_var.trace_add('write', editor.petriNetwork.update_delay)
 
-        # Автоматически обновляем видимость строк при смене типа
         self.element_type_var.trace_add('write', self._on_type_changed)
 
-        # Скрываем все опциональные строки до выделения элемента
         self._rows_place = [
             (self._lbl_tokens, self.tokens_spinbox),
         ]
@@ -112,7 +110,7 @@ class ToolsTab:
         ]
         self.show_properties_for(None)
 
-        # ── Показ имён ────────────────────────────────────────────────────
+        # ── Показ имён / меток ────────────────────────────────────────────
         ttk.Separator(self.frame, orient='horizontal').pack(fill='x', pady=8)
         self.show_names_var = tk.BooleanVar(value=True)
         ttk.Checkbutton(
@@ -144,22 +142,19 @@ class ToolsTab:
             self.show_properties_for(None)
 
     def show_properties_for(self, elem_type: str | None):
-        """Показывает только строки свойств, относящиеся к elem_type."""
         for lbl, widget in self._rows_place + self._rows_transition:
             lbl.grid_remove()
             widget.grid_remove()
-
         if elem_type == 'place':
             for lbl, widget in self._rows_place:
                 lbl.grid()
                 widget.grid()
-
         elif elem_type == 'transition':
             for lbl, widget in self._rows_transition:
                 lbl.grid()
                 widget.grid()
 
-    # ── Переключение видимости имён ───────────────────────────────────────
+    # ── Показ имён / меток ────────────────────────────────────────────────
 
     def _toggle_show_all_names(self):
         show = self.show_names_var.get()
@@ -203,26 +198,14 @@ class ToolsTab:
         self._do_rename(elem_type, old_name, new_name)
 
     def _do_rename(self, elem_type: str, old_name: str, new_name: str):
+        """
+        Переименовывает элемент через network.rename_element (который обновляет группы),
+        затем перевешивает биндинги и обновляет выделение.
+        """
         net = self.editor.petriNetwork
-        if elem_type == 'place':
-            data = net.places.pop(old_name)
-            data['element'].name = new_name
-            net.places[new_name] = data
-        else:
-            data = net.transitions.pop(old_name)
-            data['element'].name = new_name
-            net.transitions[new_name] = data
-
-        if old_name in net.real_object_map:
-            net.real_object_map[new_name] = net.real_object_map.pop(old_name)
-        if old_name in net.initial_marking:
-            net.initial_marking[new_name] = net.initial_marking.pop(old_name)
-
-        if data['element'].text_id:
-            self.editor.canvas.itemconfig(data['element'].text_id, text=new_name)
-
-        self.editor._bind_element(elem_type, new_name)
-        net.select_element(elem_type, new_name)
+        if net.rename_element(elem_type, old_name, new_name):
+            self.editor._bind_element(elem_type, new_name)
+            net.select_element(elem_type, new_name)
 
     # ── Аксессоры ─────────────────────────────────────────────────────────
 

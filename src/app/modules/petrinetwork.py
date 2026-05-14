@@ -1,6 +1,5 @@
-import json
 import math
-from tkinter import messagebox, simpledialog, ttk, filedialog
+from tkinter import messagebox, simpledialog
 from typing import List
 import tkinter as tk
 
@@ -13,8 +12,8 @@ class PetriNetwork:
         self.canvas = canvas
         self.root = root
         self.editor = editor
-        self.places = {}       # name -> {'element': PetriNetElement, 'tokens': int}
-        self.transitions = {}  # name -> {'element': PetriNetElement}
+        self.places = {}
+        self.transitions = {}
         self.arcs: List[Arc] = []
         self.real_object_map = {}
         self.initial_marking = {}
@@ -22,8 +21,8 @@ class PetriNetwork:
         self.selected_elements = set()
         self.selected_arc = None
 
-        # Группы элементов
-        self.groups = []  # List[dict]: {'name': str, 'elements': set[str]}
+        # groups: List[dict] — {'name': str, 'elements': set[str]}
+        self.groups: List[dict] = []
 
         # UI-переменные — заполняются из UIBuilder.post_build()
         self.element_name_var = None
@@ -36,6 +35,12 @@ class PetriNetwork:
         self.label_entry = None
         self.delay_var = None
         self.delay_spinbox = None
+
+    # ── Вспомогательное: обновить UI групп ───────────────────────────────
+
+    def _notify_groups_changed(self):
+        if self.editor and hasattr(self.editor, 'groups_tab'):
+            self.editor.groups_tab._refresh_groups()
 
     # ── Поиск ─────────────────────────────────────────────────────────────
 
@@ -58,7 +63,7 @@ class PetriNetwork:
         for data in self.transitions.values():
             data['element'].clear_highlight()
 
-    def highlight_group(self, group_elements: set[str], color='orange'):
+    def highlight_group(self, group_elements: set, color='orange'):
         self.clear_highlight()
         for name in group_elements:
             if name in self.places:
@@ -104,7 +109,6 @@ class PetriNetwork:
                 return None
         arc = Arc(self.canvas, source_elem, target_elem, weight, arc_type)
 
-        # Если есть встречная дуга — разводим обе визуально
         counter = next((a for a in self.arcs
                         if a.source == target_elem and a.target == source_elem), None)
         if counter:
@@ -127,7 +131,6 @@ class PetriNetwork:
         if arc in arc.target.input_arcs:
             arc.target.input_arcs.remove(arc)
 
-        # Если была встречная дуга — сбрасываем её смещение
         counter = next((a for a in self.arcs
                         if a.source == arc.target and a.target == arc.source), None)
         if counter:
@@ -135,40 +138,36 @@ class PetriNetwork:
             counter.update_position()
 
     def _ask_arc_type(self, initial: str) -> str | None:
-        """Показывает диалог выбора типа дуги с радиокнопками."""
-        import tkinter as tk
-        from tkinter import ttk
-        
         dialog_root = tk.Toplevel(self.root)
         dialog_root.title("Тип дуги")
         dialog_root.geometry("300x150")
         dialog_root.resizable(False, False)
         dialog_root.grab_set()
-        
+
+        from tkinter import ttk
         var = tk.StringVar(value=initial if initial in ("normal", "inhibitor") else "normal")
         result = [None]
-        
+
         frame = ttk.Frame(dialog_root, padding=10)
         frame.pack(fill="both", expand=True)
-        
+
         ttk.Label(frame, text="Выберите тип дуги:", font=("Arial", 10)).pack(anchor="w", pady=(0, 10))
-        ttk.Radiobutton(frame, text="Normal (обычная дуга)", value="normal", variable=var).pack(anchor="w", pady=5)
-        ttk.Radiobutton(frame, text="Inhibitor (ингибиторная дуга)", value="inhibitor", variable=var).pack(anchor="w", pady=5)
-        
-        button_frame = ttk.Frame(frame)
-        button_frame.pack(fill="x", pady=(20, 0))
-        
-        def ok_clicked():
+        ttk.Radiobutton(frame, text="Normal (обычная)", value="normal", variable=var).pack(anchor="w", pady=5)
+        ttk.Radiobutton(frame, text="Inhibitor (ингибиторная)", value="inhibitor", variable=var).pack(anchor="w", pady=5)
+
+        btn_frame = ttk.Frame(frame)
+        btn_frame.pack(fill="x", pady=(20, 0))
+
+        def ok():
             result[0] = var.get()
             dialog_root.destroy()
-        
-        def cancel_clicked():
-            result[0] = None
+
+        def cancel():
             dialog_root.destroy()
-        
-        ttk.Button(button_frame, text="OK", command=ok_clicked, width=10).pack(side="left", padx=5)
-        ttk.Button(button_frame, text="Отмена", command=cancel_clicked, width=10).pack(side="left", padx=5)
-        
+
+        ttk.Button(btn_frame, text="OK", command=ok, width=10).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="Отмена", command=cancel, width=10).pack(side="left", padx=5)
+
         self.root.wait_window(dialog_root)
         return result[0]
 
@@ -230,6 +229,7 @@ class PetriNetwork:
         self.set_marking(tuple(0 for _ in self.places))
 
     def rename_element(self, elem_type: str, old_name: str, new_name: str) -> bool:
+        """Переименовывает элемент и синхронизирует группы. Возвращает True при успехе."""
         if not new_name or new_name == old_name:
             return False
 
@@ -239,25 +239,19 @@ class PetriNetwork:
 
         data = None
         if elem_type == 'place' and old_name in self.places:
-            data = self.places[old_name]
+            data = self.places.pop(old_name)
+            self.places[new_name] = data
         elif elem_type == 'transition' and old_name in self.transitions:
-            data = self.transitions[old_name]
+            data = self.transitions.pop(old_name)
+            self.transitions[new_name] = data
 
         if not data:
             return False
 
-        if elem_type == 'place':
-            del self.places[old_name]
-            self.places[new_name] = data
-        else:
-            del self.transitions[old_name]
-            self.transitions[new_name] = data
-
         data['element'].name = new_name
 
         if old_name in self.initial_marking:
-            val = self.initial_marking.pop(old_name)
-            self.initial_marking[new_name] = val
+            self.initial_marking[new_name] = self.initial_marking.pop(old_name)
 
         if old_name in self.real_object_map:
             self.real_object_map[new_name] = self.real_object_map.pop(old_name)
@@ -265,6 +259,13 @@ class PetriNetwork:
         if data['element'].text_id:
             self.canvas.itemconfig(data['element'].text_id, text=new_name)
 
+        # Обновляем имена в группах
+        for g in self.groups:
+            if old_name in g['elements']:
+                g['elements'].discard(old_name)
+                g['elements'].add(new_name)
+
+        self._notify_groups_changed()
         return True
 
     # ── Обновление свойств из UI ──────────────────────────────────────────
@@ -281,7 +282,6 @@ class PetriNetwork:
                 pass
 
     def update_delay(self, *_):
-        """Вызывается при изменении spinbox задержки."""
         if not self.selected_element or self.selected_element.type != 'transition':
             return
         try:
@@ -292,19 +292,16 @@ class PetriNetwork:
             pass
 
     def update_priority(self, *_):
-        """Вызывается при изменении spinbox приоритета."""
         if not self.selected_element or self.selected_element.type != 'transition':
             return
         try:
-            p = int(self.priority_var.get())
-            p = max(1, p)
+            p = max(1, int(self.priority_var.get()))
             self.selected_element.priority = p
             self.selected_element.redraw_priority()
         except ValueError:
             pass
 
     def update_label(self, *_):
-        """Вызывается при изменении поля метки."""
         if not self.selected_element or self.selected_element.type != 'transition':
             return
         lbl = self.label_var.get()
@@ -312,6 +309,17 @@ class PetriNetwork:
         self.selected_element.redraw_label()
 
     # ── Выбор элементов ───────────────────────────────────────────────────
+
+    def toggle_multi_select(self, elem: PetriNetElement):
+        """Добавляет/убирает элемент из множественного выделения (Ctrl+клик)."""
+        if elem in self.selected_elements:
+            self.selected_elements.discard(elem)
+            elem.clear_highlight()
+        else:
+            self.selected_elements.add(elem)
+            color = 'blue' if elem.type == 'place' else 'green'
+            elem.highlight(color)
+        self.selected_element = elem
 
     def select_arc(self, arc: Arc):
         self.deselect_all()
@@ -396,44 +404,95 @@ class PetriNetwork:
         )
         for elem in to_delete:
             name = elem.name
-            # Удаляем все дуги элемента
             for arc in list(set(elem.input_arcs) | set(elem.output_arcs)):
                 if arc in self.arcs:
                     self.delete_arc(arc)
-            # Удаляем все canvas-объекты элемента (фигура, имя, бейджи)
             elem.delete_from_canvas()
-            # Удаляем из словарей
             if elem.type == 'place':
                 self.places.pop(name, None)
             else:
                 self.transitions.pop(name, None)
             self.real_object_map.pop(name, None)
             self.initial_marking.pop(name, None)
-            # Удаляем из групп
+            # Убираем из всех групп
             for g in self.groups:
                 g['elements'].discard(name)
 
         self.deselect_all()
-        # Обновить UI групп, если есть
-        if self.editor and hasattr(self.editor, 'groups_tab'):
-            self.editor.groups_tab._refresh_groups()
-   
-    def add_group(self, name: str, elements: set[str]):
+        self._notify_groups_changed()
+
+    # ── Управление группами ───────────────────────────────────────────────
+
+    def get_all_element_names(self) -> set:
+        return set(self.places.keys()) | set(self.transitions.keys())
+
+    def add_group(self, name: str, elements: set) -> bool:
+        name = name.strip()
         if not name:
             return False
         if any(g['name'] == name for g in self.groups):
-            messagebox.showerror("Ошибка", f"Группа '{name}' уже существует!")
+            messagebox.showerror("Ошибка", f"Группа '{name}' уже существует!", parent=self.root)
             return False
-        # Проверить, что все элементы существуют
-        all_elements = set(self.places.keys()) | set(self.transitions.keys())
-        if not elements.issubset(all_elements):
-            messagebox.showerror("Ошибка", "Некоторые элементы не найдены в сети!")
+        all_elements = self.get_all_element_names()
+        invalid = elements - all_elements
+        if invalid:
+            messagebox.showerror(
+                "Ошибка",
+                f"Элементы не найдены в сети: {', '.join(sorted(invalid))}",
+                parent=self.root
+            )
             return False
-        self.groups.append({'name': name, 'elements': elements})
+        self.groups.append({'name': name, 'elements': set(elements)})
+        self._notify_groups_changed()
         return True
 
     def remove_group(self, name: str):
         self.groups = [g for g in self.groups if g['name'] != name]
+        self._notify_groups_changed()
 
-    def get_groups(self):
-        return self.groups.copy()
+    def rename_group(self, old_name: str, new_name: str) -> bool:
+        new_name = new_name.strip()
+        if not new_name or old_name == new_name:
+            return False
+        if any(g['name'] == new_name for g in self.groups):
+            messagebox.showerror("Ошибка", f"Группа '{new_name}' уже существует!", parent=self.root)
+            return False
+        for g in self.groups:
+            if g['name'] == old_name:
+                g['name'] = new_name
+                self._notify_groups_changed()
+                return True
+        return False
+
+    def add_elements_to_group(self, group_name: str, elements: set) -> bool:
+        all_elements = self.get_all_element_names()
+        invalid = elements - all_elements
+        if invalid:
+            messagebox.showerror(
+                "Ошибка",
+                f"Элементы не найдены: {', '.join(sorted(invalid))}",
+                parent=self.root
+            )
+            return False
+        for g in self.groups:
+            if g['name'] == group_name:
+                g['elements'].update(elements)
+                self._notify_groups_changed()
+                return True
+        return False
+
+    def remove_element_from_group(self, group_name: str, element_name: str) -> bool:
+        for g in self.groups:
+            if g['name'] == group_name:
+                if element_name in g['elements']:
+                    g['elements'].discard(element_name)
+                    self._notify_groups_changed()
+                    return True
+        return False
+
+    def get_groups(self) -> list:
+        return list(self.groups)
+
+    def get_element_groups(self, element_name: str) -> list:
+        """Возвращает список групп, в которые входит элемент."""
+        return [g['name'] for g in self.groups if element_name in g['elements']]
